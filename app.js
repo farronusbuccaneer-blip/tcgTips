@@ -763,6 +763,26 @@ function drawCard(exporting = false) {
     });
     ctx.restore();
   }
+
+  // --- Layer 5: SNS Handle / Watermark ---
+  ctx.save();
+  // We place it in the safe zone between the bottom grid and the inner template border:
+  // bottom_grid bottom is at 976px, and inner border is at 994px. Midpoint is 985px.
+  // Using a 12px bold font fits perfectly with a 3px padding on both sides.
+  ctx.font = 'bold 12px Inter, sans-serif';
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  
+  const watermarkX = 720;
+  const watermarkY = 985;
+  
+  ctx.strokeText('@farron_us', watermarkX, watermarkY);
+  ctx.fillText('@farron_us', watermarkX, watermarkY);
+  ctx.restore();
   
   // --- Layer 4: Bounding Box Outlines for Visual Configuration ---
   if (!exporting && toggleGridOverlay.checked) {
