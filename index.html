@@ -74,6 +74,7 @@
                 <option value="副詞">副詞 (ピンク)</option>
                 <option value="動詞">動詞 (赤)</option>
                 <option value="名詞">名詞 (青)</option>
+                <option value="形容詞">形容詞 (灰色)</option>
                 <option value="句動詞">句動詞 (スーパーレア)</option>
                 <option value="表現">表現 (ウルトラレア)</option>
                 <option value="なし">なし (非表示)</option>
@@ -107,28 +108,28 @@
                     <span>X座標 (左端からの距離)</span>
                     <span class="slider-val" id="val-x">0px</span>
                   </div>
-                  <input type="range" id="input-x" min="0" max="768" value="48">
+                  <input type="range" id="input-x" min="0" max="800" value="50">
                 </div>
                 <div class="slider-item">
                   <div class="slider-header">
                     <span>Y座標 (上端からの距離)</span>
                     <span class="slider-val" id="val-y">0px</span>
                   </div>
-                  <input type="range" id="input-y" min="0" max="1024" value="216">
+                  <input type="range" id="input-y" min="0" max="1000" value="210">
                 </div>
                 <div class="slider-item">
                   <div class="slider-header">
                     <span>横幅 (Width)</span>
                     <span class="slider-val" id="val-w">0px</span>
                   </div>
-                  <input type="range" id="input-w" min="10" max="768" value="672">
+                  <input type="range" id="input-w" min="10" max="800" value="700">
                 </div>
                 <div class="slider-item">
                   <div class="slider-header">
                     <span>縦幅 (Height)</span>
                     <span class="slider-val" id="val-h">0px</span>
                   </div>
-                  <input type="range" id="input-h" min="10" max="1024" value="488">
+                  <input type="range" id="input-h" min="10" max="1000" value="470">
                 </div>
               </div>
               
@@ -197,6 +198,7 @@
               <button type="button" class="tag-helper" data-tag="row1">&lt;row1&gt; (日本語訳)</button>
               <button type="button" class="tag-helper" data-tag="row2">&lt;row2&gt; (例文)</button>
               <button type="button" class="tag-helper" data-tag="row3">&lt;row3&gt; (例文訳)</button>
+              <button type="button" class="secondary-btn btn-xs btn-clear-markdown" id="btn-clear-markdown" style="margin-left: auto;">クリア</button>
             </div>
             
             <textarea id="markdown-textarea" spellcheck="false" placeholder="マークダウンをここに入力してください..."></textarea>
@@ -225,7 +227,7 @@
           </div>
 
           <div class="canvas-wrapper" id="canvas-wrapper">
-            <canvas id="card-canvas" width="768" height="1024"></canvas>
+            <canvas id="card-canvas" width="800" height="1000"></canvas>
             <div class="canvas-overlay-guide" id="canvas-guide-overlay">
               <div class="drag-hint">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">

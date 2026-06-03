@@ -234,7 +234,7 @@ body {
 
 .template-item {
   position: relative;
-  aspect-ratio: 5/7;
+  aspect-ratio: 4/5;
   border-radius: 6px;
   overflow: hidden;
   border: 2px solid transparent;
@@ -723,7 +723,7 @@ textarea#markdown-textarea {
 .canvas-wrapper {
   position: relative;
   width: 100%;
-  aspect-ratio: 3/4;
+  aspect-ratio: 4/5;
   border-radius: 16px;
   overflow: hidden;
   background: #05070c;
@@ -745,7 +745,7 @@ textarea#markdown-textarea {
 #card-canvas {
   width: 100%;
   height: auto;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 4 / 5;
   display: block;
   object-fit: contain;
 }
@@ -926,4 +926,15 @@ textarea#markdown-textarea {
   body.show-preview .preview-panel {
     display: flex;
   }
+}
+
+/* Clear Markdown Button Styling */
+.btn-clear-markdown {
+  transition: all 0.2s ease;
+}
+
+.btn-clear-markdown:hover {
+  background: rgba(239, 68, 68, 0.2) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #fca5a5 !important;
 }

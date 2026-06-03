@@ -23,23 +23,17 @@ let startY = 0;
 
 // Default Grid Configurations
 const DEFAULT_GRID_CONFIGS = {
-  top_grid: { x: 48, y: 48, width: 672, height: 160 },
-  middle_grid: { x: 48, y: 216, width: 672, height: 488 },
-  bottom_grid: { x: 48, y: 712, width: 672, height: 264 }
+  top_grid: { x: 50, y: 50, width: 700, height: 150 },
+  middle_grid: { x: 50, y: 210, width: 700, height: 470 },
+  bottom_grid: { x: 50, y: 690, width: 700, height: 260 }
 };
 
 // Canvas Resolution
-const CANVAS_WIDTH = 768;
-const CANVAS_HEIGHT = 1024;
+const CANVAS_WIDTH = 800;
+const CANVAS_HEIGHT = 1000;
 
-// Default Input Text
-const DEFAULT_TEXT = `<title>ACCOMPLISH</title>
-<category>動詞</category>
-<section1>
-  <row1>成し遂げる、達成する</row1>
-  <row2>She accomplished her goal after years of hard work.</row2>
-  <row3>彼女は何年もの努力の末に目標を達成した。</row3>
-</section1>`;
+// Default Input Text (Initialized empty)
+const DEFAULT_TEXT = '';
 
 // --- DOM Elements ---
 const templateUpload = document.getElementById('template-upload');
@@ -54,6 +48,7 @@ const toggleGridOverlay = document.getElementById('toggle-grid-overlay');
 const cardCanvas = document.getElementById('card-canvas');
 const ctx = cardCanvas.getContext('2d');
 const btnDownload = document.getElementById('btn-download');
+const btnClearMarkdown = document.getElementById('btn-clear-markdown');
 
 // Grid Sliders
 const sliderX = document.getElementById('input-x');
@@ -167,27 +162,34 @@ async function loadTemplatesFromDB() {
     dbCleaned = true;
   }
   
-  // 2. Migration: Self-heal custom templates if they have outdated dimensions or configs from previous sessions
+  // 2. Migration: Check if default templates need a re-seed due to 4:5 aspect ratio update (width 700) or missing rare templates
+  const seededDefaults = templates.filter(t => t.id.startsWith('default_'));
+  const needsReseed = seededDefaults.length < 18 || seededDefaults.some(t => !t.grid_config || t.grid_config.top_grid.width !== 700);
+  
+  if (needsReseed) {
+    console.log('[FlashCard Studio] Outdated or incomplete default templates found. Forcing upgrade to 4:5 layout and 18 categories.');
+    for (const t of seededDefaults) {
+      await deleteTemplateFromStore(t.id);
+    }
+    templates = templates.filter(t => !t.id.startsWith('default_'));
+    dbCleaned = true;
+  }
+  
+  // 3. Migration: Self-heal custom templates if they have outdated dimensions
   let changed = false;
   for (let i = 0; i < templates.length; i++) {
     const tpl = templates[i];
     
-    // Check if configuration is completely missing or outdated (e.g. still at old 800 width or has 700 width)
+    // Check if configuration is completely missing or outdated (still at old 768 / 672 width)
     if (!tpl.grid_config || 
         !tpl.grid_config.middle_grid || 
-        tpl.grid_config.top_grid.width === 700 ||
+        tpl.grid_config.top_grid.width !== 700 ||
         !tpl.hasOwnProperty('tag_text')) {
       
-      console.log('[FlashCard Studio] Self-healing template configuration:', tpl.name);
+      console.log('[FlashCard Studio] Self-healing custom template configuration:', tpl.name);
       tpl.grid_config = JSON.parse(JSON.stringify(DEFAULT_GRID_CONFIGS));
       if (!tpl.hasOwnProperty('tag_text')) {
         tpl.tag_text = 'なし';
-      }
-      
-      // If it's one of our default templates, regenerate its data URL
-      if (tpl.id.startsWith('default_')) {
-        const theme = tpl.id.replace('default_', '');
-        tpl.data_url = generateProceduralTemplateDataUrl(theme);
       }
       
       await saveTemplateToStore(tpl);
@@ -199,16 +201,26 @@ async function loadTemplatesFromDB() {
     templates = await getTemplatesFromStore();
   }
   
-  // 3. Seeding: check if the new default templates exist, if not seed them
+  // 4. Seeding: check if the new 18 default templates exist, if not seed them
   const defaultSeeds = [
-    { id: 'default_black', name: '前置詞 (黒)', theme: 'black', tag: '前置詞' },
-    { id: 'default_green', name: '接続詞 (緑)', theme: 'green', tag: '接続詞' },
-    { id: 'default_yellow', name: '助動詞 (黄)', theme: 'yellow', tag: '助動詞' },
-    { id: 'default_pink', name: '副詞 (ピンク)', theme: 'pink', tag: '副詞' },
-    { id: 'default_red', name: '動詞 (赤)', theme: 'red', tag: '動詞' },
-    { id: 'default_blue', name: '名詞 (青)', theme: 'blue', tag: '名詞' },
-    { id: 'default_sr', name: '句動詞 (スーパーレア)', theme: 'sr', tag: '句動詞' },
-    { id: 'default_ur', name: '表現 (ウルトラレア)', theme: 'ur', tag: '表現' }
+    { id: 'default_black', name: '前置詞 (黒)', theme: 'black', tag: '前置詞', isRare: false },
+    { id: 'default_black_rare', name: '前置詞 (黒・レア)', theme: 'black', tag: '前置詞', isRare: true },
+    { id: 'default_green', name: '接続詞 (緑)', theme: 'green', tag: '接続詞', isRare: false },
+    { id: 'default_green_rare', name: '接続詞 (緑・レア)', theme: 'green', tag: '接続詞', isRare: true },
+    { id: 'default_yellow', name: '助動詞 (黄)', theme: 'yellow', tag: '助動詞', isRare: false },
+    { id: 'default_yellow_rare', name: '助動詞 (黄・レア)', theme: 'yellow', tag: '助動詞', isRare: true },
+    { id: 'default_pink', name: '副詞 (ピンク)', theme: 'pink', tag: '副詞', isRare: false },
+    { id: 'default_pink_rare', name: '副詞 (ピンク・レア)', theme: 'pink', tag: '副詞', isRare: true },
+    { id: 'default_red', name: '動詞 (赤)', theme: 'red', tag: '動詞', isRare: false },
+    { id: 'default_red_rare', name: '動詞 (赤・レア)', theme: 'red', tag: '動詞', isRare: true },
+    { id: 'default_blue', name: '名詞 (青)', theme: 'blue', tag: '名詞', isRare: false },
+    { id: 'default_blue_rare', name: '名詞 (青・レア)', theme: 'blue', tag: '名詞', isRare: true },
+    { id: 'default_gray', name: '形容詞 (灰色)', theme: 'gray', tag: '形容詞', isRare: false },
+    { id: 'default_gray_rare', name: '形容詞 (灰色・レア)', theme: 'gray', tag: '形容詞', isRare: true },
+    { id: 'default_sr', name: '句動詞 (通常・SR)', theme: 'sr', tag: '句動詞', isRare: false },
+    { id: 'default_sr_rare', name: '句動詞 (レア・SR)', theme: 'sr', tag: '句動詞', isRare: true },
+    { id: 'default_ur', name: '表現 (通常・UR)', theme: 'ur', tag: '表現', isRare: false },
+    { id: 'default_ur_rare', name: '表現 (レア・UR)', theme: 'ur', tag: '表現', isRare: true }
   ];
   
   let seeded = false;
@@ -216,7 +228,7 @@ async function loadTemplatesFromDB() {
     const exists = templates.some(t => t.id === seed.id);
     if (!exists) {
       console.log('[FlashCard Studio] Seeding template:', seed.name);
-      const dataUrl = generateProceduralTemplateDataUrl(seed.theme);
+      const dataUrl = generateProceduralTemplateDataUrl(seed.theme, seed.isRare);
       const template = {
         id: seed.id,
         name: seed.name,
@@ -328,23 +340,22 @@ function loadTemplateImage(template) {
 async function deleteTemplate(id) {
   await deleteTemplateFromStore(id);
   
-  // If we deleted the active template, fallback to default template
+  // If we deleted the active template, fallback to default black
   if (selectedTemplate && selectedTemplate.id === id) {
-    selectedTemplate = templates.find(t => t.id === 'default_template');
+    selectedTemplate = templates.find(t => t.id === 'default_black') || templates[0];
   }
   
   await loadTemplatesFromDB();
 }
 
-// --- Procedural Generation of Themed Templates ---
-function generateProceduralTemplateDataUrl(theme) {
+async function generateProceduralTemplateDataUrl(theme, isRare = false) {
   const canvas = document.createElement('canvas');
   canvas.width = CANVAS_WIDTH;
   canvas.height = CANVAS_HEIGHT;
   const c = canvas.getContext('2d');
   
   // Set theme colors
-  let bgStart, bgEnd, strokeCol, innerCol, isRare = false, rareType = '';
+  let bgStart, bgEnd, strokeCol, innerCol;
   
   switch (theme) {
     case 'green':
@@ -362,13 +373,14 @@ function generateProceduralTemplateDataUrl(theme) {
     case 'blue':
       bgStart = '#0f172a'; bgEnd = '#020617'; strokeCol = '#2563eb'; innerCol = '#60a5fa';
       break;
+    case 'gray':
+      bgStart = '#1e293b'; bgEnd = '#030712'; strokeCol = '#4b5563'; innerCol = '#9ca3af';
+      break;
     case 'sr':
       bgStart = '#0b1329'; bgEnd = '#020617'; strokeCol = '#d97706'; innerCol = '#fbbf24';
-      isRare = true; rareType = 'sr';
       break;
     case 'ur':
       bgStart = '#2e0854'; bgEnd = '#03010c'; strokeCol = '#7c3aed'; innerCol = '#c084fc';
-      isRare = true; rareType = 'ur';
       break;
     case 'black':
     default:
@@ -376,83 +388,205 @@ function generateProceduralTemplateDataUrl(theme) {
       break;
   }
   
-  // 1. Background
+  // Adjust rare background glow slightly
+  if (isRare) {
+    // Increase glow in background starts
+    if (theme === 'red') bgStart = '#991b1b';
+    else if (theme === 'blue') bgStart = '#1e3a8a';
+    else if (theme === 'green') bgStart = '#064e3b';
+    else if (theme === 'yellow') bgStart = '#78350f';
+    else if (theme === 'pink') bgStart = '#831843';
+    else if (theme === 'gray') bgStart = '#374151';
+    else if (theme === 'black') bgStart = '#1f2937';
+    else if (theme === 'sr') bgStart = '#1e293b';
+    else if (theme === 'ur') bgStart = '#4c1d95';
+  }
+  
+  // 1. Background Gradient
   const bgGrad = c.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   bgGrad.addColorStop(0, bgStart);
   bgGrad.addColorStop(1, bgEnd);
   c.fillStyle = bgGrad;
   c.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   
-  // 2. Shiny outer border
-  c.lineWidth = 6;
-  if (rareType === 'sr') {
-    // Gold gradient border
-    const goldGrad = c.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    goldGrad.addColorStop(0, '#fbbf24');
-    goldGrad.addColorStop(0.3, '#f59e0b');
-    goldGrad.addColorStop(0.5, '#b45309');
-    goldGrad.addColorStop(0.7, '#fbbf24');
-    goldGrad.addColorStop(1, '#78350f');
-    c.strokeStyle = goldGrad;
-  } else if (rareType === 'ur') {
-    // Cosmic glowing purple/cyan border
-    const cosmicGrad = c.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    cosmicGrad.addColorStop(0, '#c084fc');
-    cosmicGrad.addColorStop(0.3, '#818cf8');
-    cosmicGrad.addColorStop(0.5, '#22d3ee');
-    cosmicGrad.addColorStop(0.7, '#a78bfa');
-    cosmicGrad.addColorStop(1, '#c084fc');
-    c.strokeStyle = cosmicGrad;
-  } else {
-    // Standard metallic gradient
-    const silverGrad = c.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    silverGrad.addColorStop(0, '#f3f4f6');
-    silverGrad.addColorStop(0.3, innerCol);
-    silverGrad.addColorStop(0.6, strokeCol);
-    silverGrad.addColorStop(1, '#1f2937');
-    c.strokeStyle = silverGrad;
+  // 1.5 Rare Background Sheen Lines & Particles
+  if (isRare) {
+    c.save();
+    c.fillStyle = 'rgba(255, 255, 255, 0.04)';
+    // Draw diagonal sweeps
+    c.beginPath();
+    c.moveTo(0, 0);
+    c.lineTo(350, 0);
+    c.lineTo(800, 1000);
+    c.lineTo(450, 1000);
+    c.closePath();
+    c.fill();
+    
+    c.beginPath();
+    c.moveTo(500, 0);
+    c.lineTo(600, 0);
+    c.lineTo(800, 600);
+    c.lineTo(800, 500);
+    c.closePath();
+    c.fill();
+    
+    // Draw procedual star particles for luxury feel
+    const particleColor = ['red', 'yellow', 'green', 'pink', 'sr'].includes(theme) ? '#ffd700' : '#ffffff';
+    const drawSparkle = (x, y, size) => {
+      c.save();
+      c.fillStyle = particleColor;
+      c.shadowColor = particleColor;
+      c.shadowBlur = 8;
+      c.beginPath();
+      c.moveTo(x, y - size);
+      c.quadraticCurveTo(x, y, x + size, y);
+      c.quadraticCurveTo(x, y, x, y + size);
+      c.quadraticCurveTo(x, y, x - size, y);
+      c.quadraticCurveTo(x, y, x, y - size);
+      c.closePath();
+      c.fill();
+      c.restore();
+    };
+    
+    // Distribute 6 small sparkling highlights on borders/card structure
+    drawSparkle(35, 120, 7);
+    drawSparkle(765, 180, 5);
+    drawSparkle(35, 820, 6);
+    drawSparkle(765, 780, 7);
+    drawSparkle(400, 20, 5);
+    drawSparkle(400, 980, 5);
+    c.restore();
   }
+  
+  // 2. Shiny outer border
+  c.lineWidth = isRare ? 8 : 6;
+  if (isRare) {
+    const rareGrad = c.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    if (['red', 'yellow', 'green', 'pink', 'sr'].includes(theme)) {
+      // Golden metallic rare border
+      rareGrad.addColorStop(0, '#ffd700'); // Pure Gold
+      rareGrad.addColorStop(0.2, '#fff8dc'); // Shine highlight
+      rareGrad.addColorStop(0.4, '#b8860b'); // Goldenrod
+      rareGrad.addColorStop(0.6, '#ffd700'); 
+      rareGrad.addColorStop(0.8, '#d97706'); // Deep gold
+      rareGrad.addColorStop(1, '#78350f');
+    } else {
+      // Platinum / Cosmic rare border
+      rareGrad.addColorStop(0, '#e2e8f0'); // Platinum
+      rareGrad.addColorStop(0.25, '#c084fc'); // Nebula violet
+      rareGrad.addColorStop(0.5, '#22d3ee'); // Stellar cyan
+      rareGrad.addColorStop(0.75, '#818cf8'); // Celestial blue
+      rareGrad.addColorStop(1, '#e2e8f0');
+    }
+    c.strokeStyle = rareGrad;
+    
+    // Add extra drop shadow for the rare border
+    c.shadowColor = ['red', 'yellow', 'green', 'pink', 'sr'].includes(theme) ? 'rgba(251, 191, 36, 0.4)' : 'rgba(34, 211, 238, 0.3)';
+    c.shadowBlur = 12;
+  } else {
+    // Normal border (Standard metallic gradient)
+    if (theme === 'sr') {
+      const goldGrad = c.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      goldGrad.addColorStop(0, '#fbbf24');
+      goldGrad.addColorStop(0.5, '#b45309');
+      goldGrad.addColorStop(1, '#78350f');
+      c.strokeStyle = goldGrad;
+    } else if (theme === 'ur') {
+      const cosmicGrad = c.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      cosmicGrad.addColorStop(0, '#c084fc');
+      cosmicGrad.addColorStop(0.5, '#22d3ee');
+      cosmicGrad.addColorStop(1, '#7c3aed');
+      c.strokeStyle = cosmicGrad;
+    } else {
+      const silverGrad = c.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      silverGrad.addColorStop(0, '#f3f4f6');
+      silverGrad.addColorStop(0.3, innerCol);
+      silverGrad.addColorStop(0.6, strokeCol);
+      silverGrad.addColorStop(1, '#1f2937');
+      c.strokeStyle = silverGrad;
+    }
+  }
+  
   c.strokeRect(22, 22, CANVAS_WIDTH - 44, CANVAS_HEIGHT - 44);
   
+  // Reset shadow for inner elements
+  c.shadowBlur = 0;
+  
+  // Inner thin border
   c.lineWidth = 1.5;
-  c.strokeStyle = isRare ? 'rgba(251, 191, 36, 0.3)' : 'rgba(255, 255, 255, 0.15)';
+  c.strokeStyle = (theme === 'sr' || theme === 'ur' || isRare) ? 'rgba(255, 223, 0, 0.3)' : 'rgba(255, 255, 255, 0.15)';
   c.strokeRect(30, 30, CANVAS_WIDTH - 60, CANVAS_HEIGHT - 60);
-
+  
   // 3. Corner decorations
   const drawDecorCorner = (x, y, dx, dy) => {
-    c.strokeStyle = isRare ? (rareType === 'sr' ? '#fbbf24' : '#c084fc') : innerCol;
-    c.lineWidth = isRare ? 3.5 : 2.5;
+    let cornerColor = isRare ? (['red', 'yellow', 'green', 'pink', 'sr'].includes(theme) ? '#ffd700' : '#c084fc') : innerCol;
+    c.strokeStyle = cornerColor;
+    c.lineWidth = isRare ? 4.5 : 2.5;
     c.beginPath();
     c.moveTo(x, y);
-    c.lineTo(x + dx * 35, y);
+    c.lineTo(x + dx * 40, y);
     
-    if (rareType === 'sr') {
-      // Intricate SR double key-corner
+    if (isRare) {
+      // Luxury double key-corner
+      c.lineTo(x + dx * 40, y + dy * 15);
+      c.lineTo(x + dx * 15, y + dy * 15);
+      c.lineTo(x + dx * 15, y + dy * 40);
+    } else if (theme === 'sr') {
       c.lineTo(x + dx * 35, y + dy * 12);
       c.lineTo(x + dx * 12, y + dy * 12);
       c.lineTo(x + dx * 12, y + dy * 35);
-    } else if (rareType === 'ur') {
-      // Cosmic runes corner
+    } else if (theme === 'ur') {
       c.lineTo(x + dx * 24, y + dy * 24);
       c.lineTo(x, y + dy * 35);
     } else {
-      // Standard corner
       c.lineTo(x + dx * 12, y);
       c.lineTo(x + dx * 12, y + dy * 12);
       c.lineTo(x + dx * 12, y + dy * 35);
     }
     
-    c.lineTo(x, y + dy * 35);
+    c.lineTo(x, y + dy * 40);
     c.closePath();
     c.stroke();
     
-    // Add extra center gem/rune detail for UR/SR
-    if (rareType === 'ur') {
+    // Add Gemstone
+    let gemColor = '#fbbf24';
+    if (theme === 'red') gemColor = '#ef4444'; // Ruby
+    else if (theme === 'blue') gemColor = '#2563eb'; // Sapphire
+    else if (theme === 'green') gemColor = '#10b981'; // Emerald
+    else if (theme === 'yellow') gemColor = '#f59e0b'; // Topaz
+    else if (theme === 'pink') gemColor = '#ec4899'; // Pink Sapphire
+    else if (theme === 'gray') gemColor = '#e2e8f0'; // Diamond / Pearl
+    else if (theme === 'black') gemColor = '#374151'; // Onyx
+    else if (theme === 'sr') gemColor = '#d97706'; // Golden Amber
+    else if (theme === 'ur') gemColor = '#8b5cf6'; // Amethyst
+    
+    if (isRare) {
+      c.save();
+      c.fillStyle = gemColor;
+      c.shadowColor = gemColor;
+      c.shadowBlur = 12;
+      c.beginPath();
+      // Draw diamond-cut gem shape
+      const gx = x + dx * 22;
+      const gy = y + dy * 22;
+      const gSize = 8;
+      c.moveTo(gx, gy - gSize);
+      c.lineTo(gx + gSize, gy);
+      c.lineTo(gx, gy + gSize);
+      c.lineTo(gx - gSize, gy);
+      c.closePath();
+      c.fill();
+      
+      // Little white specular highlight
+      c.fillStyle = '#ffffff';
+      c.fillRect(gx - 2, gy - 2, 4, 4);
+      c.restore();
+    } else if (theme === 'ur') {
       c.fillStyle = '#22d3ee';
       c.beginPath();
       c.arc(x + dx * 20, y + dy * 20, 3.5, 0, Math.PI * 2);
       c.fill();
-    } else if (rareType === 'sr') {
+    } else if (theme === 'sr') {
       c.fillStyle = '#fbbf24';
       c.fillRect(x + dx * 16 - 2, y + dy * 16 - 2, 5, 5);
     }
@@ -463,38 +597,38 @@ function generateProceduralTemplateDataUrl(theme) {
   drawDecorCorner(15, CANVAS_HEIGHT - 15, 1, -1);
   drawDecorCorner(CANVAS_WIDTH - 15, CANVAS_HEIGHT - 15, -1, -1);
   
-  // 4. Draw Top Grid Box
+  // 4. Draw Top Grid Box (White opaque plate)
   c.fillStyle = 'rgba(255, 255, 255, 0.96)';
-  c.fillRect(48, 48, 672, 160);
+  c.fillRect(50, 50, 700, 150);
   
-  c.strokeStyle = rareType === 'sr' ? '#b45309' : (rareType === 'ur' ? '#6d28d9' : '#334155');
+  c.strokeStyle = (theme === 'sr' || isRare) ? '#b45309' : (theme === 'ur' ? '#6d28d9' : '#334155');
   c.lineWidth = 3.5;
-  c.strokeRect(48, 48, 672, 160);
+  c.strokeRect(50, 50, 700, 150);
   
-  c.strokeStyle = isRare ? (rareType === 'sr' ? '#fbbf24' : '#c084fc') : innerCol;
+  c.strokeStyle = (theme === 'sr' || theme === 'ur' || isRare) ? '#fbbf24' : innerCol;
   c.lineWidth = 1;
-  c.strokeRect(50, 50, 668, 156);
+  c.strokeRect(52, 52, 696, 146);
   
-  // 5. Middle Grid (Window)
-  c.strokeStyle = rareType === 'sr' ? '#78350f' : (rareType === 'ur' ? '#5b21b6' : '#1e293b');
+  // 5. Middle Grid (Window outline)
+  c.strokeStyle = (theme === 'sr' || isRare) ? '#78350f' : (theme === 'ur' ? '#5b21b6' : '#1e293b');
   c.lineWidth = 6;
-  c.strokeRect(48, 216, 672, 488);
+  c.strokeRect(50, 210, 700, 470);
   
-  c.strokeStyle = isRare ? (rareType === 'sr' ? '#fbbf24' : '#c084fc') : innerCol;
+  c.strokeStyle = (theme === 'sr' || theme === 'ur' || isRare) ? '#fbbf24' : innerCol;
   c.lineWidth = 1.5;
-  c.strokeRect(51, 219, 666, 482);
+  c.strokeRect(53, 213, 694, 464);
   
-  // 6. Draw Bottom Grid Box
+  // 6. Draw Bottom Grid Box (White opaque plate)
   c.fillStyle = 'rgba(255, 255, 255, 0.96)';
-  c.fillRect(48, 712, 672, 264);
+  c.fillRect(50, 690, 700, 260);
   
-  c.strokeStyle = rareType === 'sr' ? '#b45309' : (rareType === 'ur' ? '#6d28d9' : '#334155');
+  c.strokeStyle = (theme === 'sr' || isRare) ? '#b45309' : (theme === 'ur' ? '#6d28d9' : '#334155');
   c.lineWidth = 3.5;
-  c.strokeRect(48, 712, 672, 264);
+  c.strokeRect(50, 690, 700, 260);
   
-  c.strokeStyle = isRare ? (rareType === 'sr' ? '#fbbf24' : '#c084fc') : innerCol;
+  c.strokeStyle = (theme === 'sr' || theme === 'ur' || isRare) ? '#fbbf24' : innerCol;
   c.lineWidth = 1;
-  c.strokeRect(50, 714, 668, 260);
+  c.strokeRect(52, 692, 696, 256);
   
   return canvas.toDataURL('image/png');
 }
@@ -528,8 +662,13 @@ function parseMarkdownText(text) {
     if (r3) row3 = r3[1].trim();
   }
   
+  let rawTitle = titleMatch ? titleMatch[1].trim() : '';
+  const isRare = /<rare>/i.test(rawTitle);
+  const cleanTitle = rawTitle.replace(/<\/?rare>/gi, '').trim();
+  
   return {
-    title: titleMatch ? titleMatch[1].trim() : '',
+    title: cleanTitle,
+    isRare: isRare,
     category: categoryMatch ? categoryMatch[1].trim() : '',
     row1,
     row2,
@@ -644,7 +783,7 @@ function drawCard(exporting = false) {
       ctx,
       textContent.title,
       'Outfit, sans-serif',
-      42,
+      52,
       textMaxWidth,
       true,
       false
@@ -777,8 +916,8 @@ function drawCard(exporting = false) {
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   
-  const watermarkX = 720;
-  const watermarkY = 985;
+  const watermarkX = 750;
+  const watermarkY = 960;
   
   ctx.strokeText('@farron_us', watermarkX, watermarkY);
   ctx.fillText('@farron_us', watermarkX, watermarkY);
@@ -850,8 +989,14 @@ function setupEventListeners() {
     const text = markdownTextarea.value;
     const parsed = parseMarkdownText(text);
     if (parsed.category) {
-      handleCategoryAutoSelect(parsed.category);
+      handleCategoryAutoSelect(parsed.category, parsed.isRare);
     }
+    drawCard();
+  });
+  
+  // Clear markdown button handler
+  btnClearMarkdown.addEventListener('click', () => {
+    markdownTextarea.value = '';
     drawCard();
   });
   
@@ -1295,6 +1440,7 @@ function getTagColor(tag) {
     case '副詞': return { bg: 'rgba(236, 72, 153, 0.12)', border: '#db2777', text: '#9d174d' };
     case '動詞': return { bg: 'rgba(239, 68, 68, 0.12)', border: '#dc2626', text: '#991b1b' };
     case '名詞': return { bg: 'rgba(59, 130, 246, 0.12)', border: '#2563eb', text: '#1e40af' };
+    case '形容詞': return { bg: 'rgba(156, 163, 175, 0.12)', border: '#9ca3af', text: '#374151' };
     case '句動詞': return { bg: 'rgba(30, 41, 59, 0.95)', border: '#fbbf24', text: '#fbbf24' };
     case '表現': return { bg: 'rgba(88, 28, 135, 0.95)', border: '#c084fc', text: '#f3e8ff' };
     default: return { bg: 'rgba(6, 182, 212, 0.1)', border: '#0891b2', text: '#0e7490' };
@@ -1329,7 +1475,7 @@ function drawRoundedRect(ctx, x, y, width, height, radius, fillStyle, strokeStyl
 }
 
 // --- Auto template switcher based on category tag ---
-function handleCategoryAutoSelect(categoryText) {
+function handleCategoryAutoSelect(categoryText, isRare = false) {
   if (!categoryText) return;
   
   const categoryMap = {
@@ -1339,12 +1485,18 @@ function handleCategoryAutoSelect(categoryText) {
     '副詞': 'default_pink',
     '動詞': 'default_red',
     '名詞': 'default_blue',
+    '形容詞': 'default_gray',
     '句動詞': 'default_sr',
     '表現': 'default_ur'
   };
   
-  const targetTemplateId = categoryMap[categoryText];
-  if (targetTemplateId && selectedTemplate && selectedTemplate.id !== targetTemplateId) {
-    selectTemplate(targetTemplateId);
+  let targetTemplateId = categoryMap[categoryText];
+  if (targetTemplateId) {
+    if (isRare) {
+      targetTemplateId += '_rare';
+    }
+    if (selectedTemplate && selectedTemplate.id !== targetTemplateId) {
+      selectTemplate(targetTemplateId);
+    }
   }
 }
