@@ -163,8 +163,7 @@ async function loadTemplatesFromDB() {
   }
   
   // 2. Migration: Check if default templates need a re-seed due to 4:5 aspect ratio update (width 700) or missing rare templates
-  const seededDefaults = templates.filter(t => t.id.startsWith('default_'));
-  const needsReseed = seededDefaults.length < 18 || seededDefaults.some(t => !t.grid_config || t.grid_config.top_grid.width !== 700);
+  const needsReseed = seededDefaults.length < 18 || seededDefaults.some(t => !t.grid_config || !t.grid_config.top_grid || t.grid_config.top_grid.width !== 700);
   
   if (needsReseed) {
     console.log('[FlashCard Studio] Outdated or incomplete default templates found. Forcing upgrade to 4:5 layout and 18 categories.');
@@ -180,9 +179,9 @@ async function loadTemplatesFromDB() {
   for (let i = 0; i < templates.length; i++) {
     const tpl = templates[i];
     
-    // Check if configuration is completely missing or outdated (still at old 768 / 672 width)
     if (!tpl.grid_config || 
         !tpl.grid_config.middle_grid || 
+        !tpl.grid_config.top_grid ||
         tpl.grid_config.top_grid.width !== 700 ||
         !tpl.hasOwnProperty('tag_text')) {
       
@@ -348,7 +347,7 @@ async function deleteTemplate(id) {
   await loadTemplatesFromDB();
 }
 
-async function generateProceduralTemplateDataUrl(theme, isRare = false) {
+function generateProceduralTemplateDataUrl(theme, isRare = false) {
   const canvas = document.createElement('canvas');
   canvas.width = CANVAS_WIDTH;
   canvas.height = CANVAS_HEIGHT;
