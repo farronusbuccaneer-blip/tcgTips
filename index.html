@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlashCard Generator Studio</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo">
+        <svg class="icon-logo" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          <line x1="3" y1="9" x2="21" y2="9"/>
+          <line x1="9" y1="21" x2="9" y2="9"/>
+        </svg>
+        <span>FlashCard <span class="gradient-text">Studio</span></span>
+      </div>
+      <p class="tagline">トレーディングカード風学習カード画像ジェネレーター</p>
+    </header>
+
+    <!-- Mobile Tabs Navigation -->
+    <div class="mobile-tabs" id="mobile-tabs">
+      <button type="button" class="mobile-tab-btn active" data-target="edit">編集</button>
+      <button type="button" class="mobile-tab-btn" data-target="preview">プレビュー</button>
+    </div>
+
+    <div class="main-layout">
+      <!-- Left Panel: Controls -->
+      <aside class="control-panel">
+        
+        <!-- Tab Navigation (Optional, or sections) -->
+        <div class="panel-section">
+          <h2 class="section-title">
+            <svg class="icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            1. テンプレート選択・管理
+          </h2>
+          
+          <div class="upload-area">
+            <label class="custom-file-upload">
+              <input type="file" id="template-upload" accept="image/png, image/jpeg">
+              <svg class="icon-upload" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              新規テンプレート画像を追加 (.png / .jpg)
+            </label>
+          </div>
+
+          <div class="template-list-container">
+            <p class="small-label">登録済みテンプレート一覧</p>
+            <div class="template-grid" id="template-grid">
+              <!-- Templates populated dynamically by JS -->
+            </div>
+          </div>
+
+          <!-- Card Tag Configuration -->
+          <div class="template-tag-container">
+            <p class="small-label">カード種別タグ (右上枠の右下)</p>
+            <div class="tag-selector-wrapper">
+              <select id="select-template-tag">
+                <option value="前置詞">前置詞 (黒)</option>
+                <option value="接続詞">接続詞 (緑)</option>
+                <option value="助動詞">助動詞 (黄)</option>
+                <option value="副詞">副詞 (ピンク)</option>
+                <option value="動詞">動詞 (赤)</option>
+                <option value="名詞">名詞 (青)</option>
+                <option value="句動詞">句動詞 (スーパーレア)</option>
+                <option value="表現">表現 (ウルトラレア)</option>
+                <option value="なし">なし (非表示)</option>
+                <option value="custom">カスタム入力...</option>
+              </select>
+              <input type="text" id="input-custom-tag" class="custom-tag-input" style="display: none;" placeholder="タグ名を入力 (最大10文字)..." maxlength="10">
+            </div>
+          </div>
+          
+          <!-- Collapsible Grid Configuration Editor -->
+          <details class="grid-editor-details" open>
+            <summary class="details-summary">
+              <span>グリッド領域の座標設定 (選択中のテンプレート)</span>
+              <svg class="icon-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </summary>
+            
+            <div class="grid-editor-content">
+              <!-- Select target grid -->
+              <div class="grid-selector">
+                <button type="button" class="tab-btn active" data-grid="middle">中央 (背景画像)</button>
+                <button type="button" class="tab-btn" data-grid="top">上部 (タイトル)</button>
+                <button type="button" class="tab-btn" data-grid="bottom">下部 (テキスト)</button>
+              </div>
+
+              <!-- Sliders (x, y, w, h) for current grid -->
+              <div class="slider-group" id="grid-sliders-container">
+                <div class="slider-item">
+                  <div class="slider-header">
+                    <span>X座標 (左端からの距離)</span>
+                    <span class="slider-val" id="val-x">0px</span>
+                  </div>
+                  <input type="range" id="input-x" min="0" max="768" value="48">
+                </div>
+                <div class="slider-item">
+                  <div class="slider-header">
+                    <span>Y座標 (上端からの距離)</span>
+                    <span class="slider-val" id="val-y">0px</span>
+                  </div>
+                  <input type="range" id="input-y" min="0" max="1024" value="216">
+                </div>
+                <div class="slider-item">
+                  <div class="slider-header">
+                    <span>横幅 (Width)</span>
+                    <span class="slider-val" id="val-w">0px</span>
+                  </div>
+                  <input type="range" id="input-w" min="10" max="768" value="672">
+                </div>
+                <div class="slider-item">
+                  <div class="slider-header">
+                    <span>縦幅 (Height)</span>
+                    <span class="slider-val" id="val-h">0px</span>
+                  </div>
+                  <input type="range" id="input-h" min="10" max="1024" value="488">
+                </div>
+              </div>
+              
+              <div class="grid-actions">
+                <button type="button" class="secondary-btn btn-sm" id="btn-reset-grid">この設定を初期化</button>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <!-- Section: Background Image Upload -->
+        <div class="panel-section">
+          <h2 class="section-title">
+            <svg class="icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+            2. 背景画像 (中央はめ込み画像)
+          </h2>
+          <div class="bg-upload-container">
+            <div class="upload-area">
+              <label class="custom-file-upload bg-file-upload">
+                <input type="file" id="bg-upload" accept="image/png, image/jpeg">
+                <svg class="icon-upload" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                <span>背景用の画像をアップロード (保存されません)</span>
+              </label>
+            </div>
+            
+            <div class="bg-status-bar" id="bg-status-bar" style="display: none;">
+              <span class="bg-filename" id="bg-filename">image.jpg</span>
+              <button type="button" class="clear-btn" id="btn-clear-bg" title="背景画像をクリア">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            <div class="bg-controls-hint">
+              <p>💡 カードのプレビュー領域をドラッグで位置調整、マウスホイールで拡大縮小できます。</p>
+              <button type="button" class="secondary-btn btn-xs" id="btn-reset-bg-pos" disabled>位置とサイズをリセット</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: Markdown Text -->
+        <div class="panel-section">
+          <h2 class="section-title">
+            <svg class="icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="4 7 4 4 20 4 20 7"/>
+              <line x1="9" y1="20" x2="15" y2="20"/>
+              <line x1="12" y1="4" x2="12" y2="20"/>
+            </svg>
+            3. カードテキスト編集 (XML風マークダウン)
+          </h2>
+          
+          <div class="text-editor-container">
+            <div class="helper-buttons">
+              <button type="button" class="tag-helper" data-tag="title">&lt;title&gt;</button>
+              <button type="button" class="tag-helper" data-tag="category">&lt;category&gt;</button>
+              <button type="button" class="tag-helper" data-tag="row1">&lt;row1&gt; (日本語訳)</button>
+              <button type="button" class="tag-helper" data-tag="row2">&lt;row2&gt; (例文)</button>
+              <button type="button" class="tag-helper" data-tag="row3">&lt;row3&gt; (例文訳)</button>
+            </div>
+            
+            <textarea id="markdown-textarea" spellcheck="false" placeholder="マークダウンをここに入力してください..."></textarea>
+          </div>
+          
+          <div class="text-info">
+            <p class="desc-text">XML風タグに囲まれた文字列が、それぞれの領域に描画されます。幅に合わせてフォントサイズは自動縮小されます。</p>
+          </div>
+        </div>
+
+      </aside>
+
+      <!-- Center/Right Panel: Canvas Preview & Options -->
+      <main class="preview-panel">
+        <div class="sticky-preview">
+          
+          <div class="preview-header">
+            <h3>プレビュー</h3>
+            <div class="overlay-toggle">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-grid-overlay" checked>
+                <span class="toggle-slider"></span>
+              </label>
+              <span>グリッド境界の枠線を表示</span>
+            </div>
+          </div>
+
+          <div class="canvas-wrapper" id="canvas-wrapper">
+            <canvas id="card-canvas" width="768" height="1024"></canvas>
+            <div class="canvas-overlay-guide" id="canvas-guide-overlay">
+              <div class="drag-hint">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
+                </svg>
+                <span>ドラッグして位置調整 / スクロールでズーム</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="action-bar">
+            <button type="button" class="primary-btn" id="btn-download">
+              <svg class="icon-download" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              カード画像をダウンロード (PNG)
+            </button>
+          </div>
+
+          <!-- Description of the tool usage -->
+          <div class="tips-card">
+            <h4>💡 高速カード作成のコツ</h4>
+            <ul>
+              <li>テンプレート画像は<b>一度アップロードするとローカル(ブラウザ)に保存されます</b>。再起動しても選択するだけですぐに使えます。</li>
+              <li>背景画像は一時メモリのみ。タブを閉じると自動で消去され、余計なローカル容量を消費しません。</li>
+              <li>テキスト枠からはみ出す場合は、自動的に文字サイズが小さくなってフィットします。</li>
+            </ul>
+          </div>
+
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
