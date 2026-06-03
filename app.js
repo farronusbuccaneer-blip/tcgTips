@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (error) {
     console.error('Initialization failed:', error);
-    alert('データベースの初期化に失敗しました。');
+    alert('データベースの初期化に失敗しました。\n\n【エラー詳細】\n' + error.message + '\n\n【スタックトレース】\n' + error.stack);
   }
 });
 
