@@ -994,10 +994,12 @@ function setupEventListeners() {
   });
   
   // Clear markdown button handler
-  btnClearMarkdown.addEventListener('click', () => {
-    markdownTextarea.value = '';
-    drawCard();
-  });
+  if (btnClearMarkdown) {
+    btnClearMarkdown.addEventListener('click', () => {
+      markdownTextarea.value = '';
+      drawCard();
+    });
+  }
   
   // Guide outline toggle
   toggleGridOverlay.addEventListener('change', () => drawCard());
@@ -1251,7 +1253,7 @@ function updateTagUI() {
   if (!selectedTemplate) return;
   
   const currentTag = selectedTemplate.tag_text || 'なし';
-  const standardTags = ['前置詞', '接続詞', '助動詞', '副詞', '動詞', '名詞', '句動詞', '表現', 'なし'];
+  const standardTags = ['前置詞', '接続詞', '助動詞', '副詞', '動詞', '名詞', '形容詞', '句動詞', '表現', 'なし'];
   
   if (standardTags.includes(currentTag)) {
     selectTemplateTag.value = currentTag;
