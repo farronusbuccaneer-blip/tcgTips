@@ -164,7 +164,7 @@ async function loadTemplatesFromDB() {
   
   // 2. Migration: Check if default templates need a re-seed due to 4:5 aspect ratio update (width 700) or missing rare templates
   const seededDefaults = templates.filter(t => t.id.startsWith('default_'));
-  const needsReseed = seededDefaults.length < 18 || seededDefaults.some(t => !t.grid_config || !t.grid_config.top_grid || t.grid_config.top_grid.width !== 700);
+  const needsReseed = seededDefaults.length < 18 || seededDefaults.some(t => !t.grid_config || !t.grid_config.top_grid || t.grid_config.top_grid.width !== 700 || t.seed_version !== 3);
   
   if (needsReseed) {
     console.log('[FlashCard Studio] Outdated or incomplete default templates found. Forcing upgrade to 4:5 layout and 18 categories.');
@@ -235,7 +235,8 @@ async function loadTemplatesFromDB() {
         data_url: dataUrl,
         created_at: Date.now(),
         grid_config: JSON.parse(JSON.stringify(DEFAULT_GRID_CONFIGS)),
-        tag_text: seed.tag
+        tag_text: seed.tag,
+        seed_version: 3
       };
       await saveTemplateToStore(template);
       seeded = true;
@@ -390,16 +391,15 @@ function generateProceduralTemplateDataUrl(theme, isRare = false) {
   
   // Adjust rare background glow slightly
   if (isRare) {
-    // Increase glow in background starts
-    if (theme === 'red') bgStart = '#991b1b';
-    else if (theme === 'blue') bgStart = '#1e3a8a';
-    else if (theme === 'green') bgStart = '#064e3b';
-    else if (theme === 'yellow') bgStart = '#78350f';
-    else if (theme === 'pink') bgStart = '#831843';
-    else if (theme === 'gray') bgStart = '#374151';
-    else if (theme === 'black') bgStart = '#1f2937';
-    else if (theme === 'sr') bgStart = '#1e293b';
-    else if (theme === 'ur') bgStart = '#4c1d95';
+    if (theme === 'red') bgStart = '#b91c1c';
+    else if (theme === 'blue') bgStart = '#1e40af';
+    else if (theme === 'green') bgStart = '#065f46';
+    else if (theme === 'yellow') bgStart = '#92400e';
+    else if (theme === 'pink') bgStart = '#be185d';
+    else if (theme === 'gray') bgStart = '#4b5569';
+    else if (theme === 'black') bgStart = '#374151';
+    else if (theme === 'sr') bgStart = '#1e3a8a';
+    else if (theme === 'ur') bgStart = '#5b21b6';
   }
   
   // 1. Background Gradient
@@ -409,11 +409,40 @@ function generateProceduralTemplateDataUrl(theme, isRare = false) {
   c.fillStyle = bgGrad;
   c.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   
-  // 1.5 Rare Background Sheen Lines & Particles
+  // 1.5 Rare Premium Background Features (Sunburst & Holographic Shimmer)
   if (isRare) {
+    // 1.5.1 Sunburst Glow (后光効果)
     c.save();
-    c.fillStyle = 'rgba(255, 255, 255, 0.04)';
-    // Draw diagonal sweeps
+    c.translate(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+    c.fillStyle = ['red', 'yellow', 'green', 'pink', 'sr'].includes(theme) ? 'rgba(251, 191, 36, 0.05)' : 'rgba(34, 211, 238, 0.04)';
+    const rays = 20;
+    for (let i = 0; i < rays; i++) {
+      c.rotate((Math.PI * 2) / rays);
+      c.beginPath();
+      c.moveTo(0, 0);
+      c.lineTo(-20, 600);
+      c.lineTo(20, 600);
+      c.closePath();
+      c.fill();
+    }
+    c.restore();
+
+    // 1.5.2 Holographic Rainbow Simmer Overlay (虹色ホログラフィック)
+    c.save();
+    const holoGrad = c.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    holoGrad.addColorStop(0, 'rgba(239, 68, 68, 0.07)'); // Red
+    holoGrad.addColorStop(0.2, 'rgba(245, 158, 11, 0.07)'); // Orange
+    holoGrad.addColorStop(0.4, 'rgba(16, 185, 129, 0.07)'); // Green
+    holoGrad.addColorStop(0.6, 'rgba(6, 182, 212, 0.07)'); // Cyan
+    holoGrad.addColorStop(0.8, 'rgba(99, 102, 241, 0.07)'); // Indigo
+    holoGrad.addColorStop(1, 'rgba(236, 72, 153, 0.07)'); // Pink
+    c.fillStyle = holoGrad;
+    c.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    c.restore();
+
+    // 1.5.3 Diagonal Highlight sweeps
+    c.save();
+    c.fillStyle = 'rgba(255, 255, 255, 0.05)';
     c.beginPath();
     c.moveTo(0, 0);
     c.lineTo(350, 0);
@@ -421,68 +450,103 @@ function generateProceduralTemplateDataUrl(theme, isRare = false) {
     c.lineTo(450, 1000);
     c.closePath();
     c.fill();
+    c.restore();
+
+    // 1.5.4 Premium Sparkle & Light Bubble Particles (星型スパークルと光の泡)
+    const isGoldTheme = ['red', 'yellow', 'green', 'pink', 'sr'].includes(theme);
+    const particleColor = isGoldTheme ? '#ffd700' : '#22d3ee';
     
-    c.beginPath();
-    c.moveTo(500, 0);
-    c.lineTo(600, 0);
-    c.lineTo(800, 600);
-    c.lineTo(800, 500);
-    c.closePath();
-    c.fill();
-    
-    // Draw procedual star particles for luxury feel
-    const particleColor = ['red', 'yellow', 'green', 'pink', 'sr'].includes(theme) ? '#ffd700' : '#ffffff';
-    const drawSparkle = (x, y, size) => {
+    // Custom 8-point super sparkle
+    const drawSuperSparkle = (x, y, size) => {
       c.save();
-      c.fillStyle = particleColor;
-      c.shadowColor = particleColor;
-      c.shadowBlur = 8;
+      // Outer radial glow
+      const glow = c.createRadialGradient(x, y, 0, x, y, size * 2.5);
+      glow.addColorStop(0, particleColor);
+      glow.addColorStop(0.5, 'rgba(255,255,255,0.3)');
+      glow.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = glow;
       c.beginPath();
-      c.moveTo(x, y - size);
-      c.quadraticCurveTo(x, y, x + size, y);
-      c.quadraticCurveTo(x, y, x, y + size);
-      c.quadraticCurveTo(x, y, x - size, y);
-      c.quadraticCurveTo(x, y, x, y - size);
+      c.arc(x, y, size * 2.5, 0, Math.PI * 2);
+      c.fill();
+      
+      // 8-point star fill
+      c.fillStyle = '#ffffff';
+      c.shadowColor = particleColor;
+      c.shadowBlur = 10;
+      c.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const angle = (Math.PI / 4) * i;
+        const r = i % 2 === 0 ? size : size * 0.4;
+        c.lineTo(x + Math.cos(angle) * r, y + Math.sin(angle) * r);
+      }
       c.closePath();
       c.fill();
       c.restore();
     };
+
+    // Bubble highlight (glitter style)
+    const drawBubble = (x, y, r) => {
+      c.save();
+      c.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+      c.lineWidth = 1;
+      const bGlow = c.createRadialGradient(x, y, 0, x, y, r);
+      bGlow.addColorStop(0, 'rgba(255, 255, 255, 0.2)');
+      bGlow.addColorStop(0.8, 'rgba(255, 255, 255, 0.05)');
+      bGlow.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      c.fillStyle = bGlow;
+      c.beginPath();
+      c.arc(x, y, r, 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+      c.restore();
+    };
+
+    // Scatter sparkles
+    drawSuperSparkle(70, 125, 14);
+    drawSuperSparkle(730, 110, 10);
+    drawSuperSparkle(60, 835, 12);
+    drawSuperSparkle(740, 845, 15);
+    drawSuperSparkle(400, 25, 12);
+    drawSuperSparkle(400, 975, 11);
+    drawSuperSparkle(260, 185, 8);
+    drawSuperSparkle(540, 805, 9);
     
-    // Distribute 6 small sparkling highlights on borders/card structure
-    drawSparkle(35, 120, 7);
-    drawSparkle(765, 180, 5);
-    drawSparkle(35, 820, 6);
-    drawSparkle(765, 780, 7);
-    drawSparkle(400, 20, 5);
-    drawSparkle(400, 980, 5);
+    // Scatter bubble sparkles
+    drawBubble(120, 100, 16);
+    drawBubble(680, 145, 10);
+    drawBubble(140, 880, 12);
+    drawBubble(650, 815, 20);
+    drawBubble(480, 90, 8);
+    drawBubble(320, 910, 14);
     c.restore();
   }
   
   // 2. Shiny outer border
-  c.lineWidth = isRare ? 8 : 6;
+  c.lineWidth = isRare ? 10 : 6; // Thicker border for rare
   if (isRare) {
     const rareGrad = c.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     if (['red', 'yellow', 'green', 'pink', 'sr'].includes(theme)) {
       // Golden metallic rare border
       rareGrad.addColorStop(0, '#ffd700'); // Pure Gold
-      rareGrad.addColorStop(0.2, '#fff8dc'); // Shine highlight
-      rareGrad.addColorStop(0.4, '#b8860b'); // Goldenrod
-      rareGrad.addColorStop(0.6, '#ffd700'); 
-      rareGrad.addColorStop(0.8, '#d97706'); // Deep gold
-      rareGrad.addColorStop(1, '#78350f');
+      rareGrad.addColorStop(0.15, '#fff8dc'); // Shine highlight
+      rareGrad.addColorStop(0.35, '#d97706'); // Deep amber gold
+      rareGrad.addColorStop(0.55, '#ffffff'); // Platinum gleam
+      rareGrad.addColorStop(0.75, '#ffd700'); 
+      rareGrad.addColorStop(1, '#78350f'); // Dark gold
     } else {
       // Platinum / Cosmic rare border
-      rareGrad.addColorStop(0, '#e2e8f0'); // Platinum
-      rareGrad.addColorStop(0.25, '#c084fc'); // Nebula violet
-      rareGrad.addColorStop(0.5, '#22d3ee'); // Stellar cyan
-      rareGrad.addColorStop(0.75, '#818cf8'); // Celestial blue
-      rareGrad.addColorStop(1, '#e2e8f0');
+      rareGrad.addColorStop(0, '#f8fafc'); // Pure Silver
+      rareGrad.addColorStop(0.2, '#c084fc'); // Purple magic
+      rareGrad.addColorStop(0.4, '#ffffff'); // Silver sheen
+      rareGrad.addColorStop(0.6, '#22d3ee'); // Stellar cyan
+      rareGrad.addColorStop(0.8, '#a78bfa'); // Violet
+      rareGrad.addColorStop(1, '#f8fafc');
     }
     c.strokeStyle = rareGrad;
     
-    // Add extra drop shadow for the rare border
-    c.shadowColor = ['red', 'yellow', 'green', 'pink', 'sr'].includes(theme) ? 'rgba(251, 191, 36, 0.4)' : 'rgba(34, 211, 238, 0.3)';
-    c.shadowBlur = 12;
+    // Add glowing drop shadow for the rare border
+    c.shadowColor = ['red', 'yellow', 'green', 'pink', 'sr'].includes(theme) ? 'rgba(251, 191, 36, 0.5)' : 'rgba(34, 211, 238, 0.4)';
+    c.shadowBlur = 14;
   } else {
     // Normal border (Standard metallic gradient)
     if (theme === 'sr') {
@@ -509,13 +573,20 @@ function generateProceduralTemplateDataUrl(theme, isRare = false) {
   
   c.strokeRect(22, 22, CANVAS_WIDTH - 44, CANVAS_HEIGHT - 44);
   
-  // Reset shadow for inner elements
+  // Reset shadow
   c.shadowBlur = 0;
   
   // Inner thin border
   c.lineWidth = 1.5;
-  c.strokeStyle = (theme === 'sr' || theme === 'ur' || isRare) ? 'rgba(255, 223, 0, 0.3)' : 'rgba(255, 255, 255, 0.15)';
+  c.strokeStyle = (theme === 'sr' || theme === 'ur' || isRare) ? 'rgba(255, 223, 0, 0.35)' : 'rgba(255, 255, 255, 0.15)';
   c.strokeRect(30, 30, CANVAS_WIDTH - 60, CANVAS_HEIGHT - 60);
+  
+  // Extra Gold/Platinum Inner Line for Rare
+  if (isRare) {
+    c.lineWidth = 2.5;
+    c.strokeStyle = ['red', 'yellow', 'green', 'pink', 'sr'].includes(theme) ? 'rgba(255, 215, 0, 0.8)' : 'rgba(248, 250, 252, 0.8)';
+    c.strokeRect(34, 34, CANVAS_WIDTH - 68, CANVAS_HEIGHT - 68);
+  }
   
   // 3. Corner decorations
   const drawDecorCorner = (x, y, dx, dy) => {
@@ -550,26 +621,37 @@ function generateProceduralTemplateDataUrl(theme, isRare = false) {
     
     // Add Gemstone
     let gemColor = '#fbbf24';
-    if (theme === 'red') gemColor = '#ef4444'; // Ruby
-    else if (theme === 'blue') gemColor = '#2563eb'; // Sapphire
-    else if (theme === 'green') gemColor = '#10b981'; // Emerald
-    else if (theme === 'yellow') gemColor = '#f59e0b'; // Topaz
-    else if (theme === 'pink') gemColor = '#ec4899'; // Pink Sapphire
-    else if (theme === 'gray') gemColor = '#e2e8f0'; // Diamond / Pearl
-    else if (theme === 'black') gemColor = '#374151'; // Onyx
-    else if (theme === 'sr') gemColor = '#d97706'; // Golden Amber
-    else if (theme === 'ur') gemColor = '#8b5cf6'; // Amethyst
+    let gemRgba = '251, 191, 36';
+    if (theme === 'red') { gemColor = '#ef4444'; gemRgba = '239, 68, 68'; } // Ruby
+    else if (theme === 'blue') { gemColor = '#2563eb'; gemRgba = '37, 99, 235'; } // Sapphire
+    else if (theme === 'green') { gemColor = '#10b981'; gemRgba = '16, 185, 129'; } // Emerald
+    else if (theme === 'yellow') { gemColor = '#f59e0b'; gemRgba = '245, 158, 11'; } // Topaz
+    else if (theme === 'pink') { gemColor = '#ec4899'; gemRgba = '236, 72, 153'; } // Pink Sapphire
+    else if (theme === 'gray') { gemColor = '#f1f5f9'; gemRgba = '241, 245, 249'; } // Diamond / Pearl
+    else if (theme === 'black') { gemColor = '#374151'; gemRgba = '55, 65, 81'; } // Onyx
+    else if (theme === 'sr') { gemColor = '#d97706'; gemRgba = '217, 119, 6'; } // Golden Amber
+    else if (theme === 'ur') { gemColor = '#8b5cf6'; gemRgba = '139, 92, 246'; } // Amethyst
     
     if (isRare) {
       c.save();
-      c.fillStyle = gemColor;
-      c.shadowColor = gemColor;
-      c.shadowBlur = 12;
-      c.beginPath();
-      // Draw diamond-cut gem shape
+      // Glowing radial gradient behind gem
       const gx = x + dx * 22;
       const gy = y + dy * 22;
-      const gSize = 8;
+      const glowGrad = c.createRadialGradient(gx, gy, 0, gx, gy, 28);
+      glowGrad.addColorStop(0, 'rgba(' + gemRgba + ', 0.55)');
+      glowGrad.addColorStop(0.5, 'rgba(' + gemRgba + ', 0.2)');
+      glowGrad.addColorStop(1, 'rgba(' + gemRgba + ', 0)');
+      c.fillStyle = glowGrad;
+      c.beginPath();
+      c.arc(gx, gy, 28, 0, Math.PI * 2);
+      c.fill();
+      
+      // Large Gemstone drawing
+      c.fillStyle = gemColor;
+      c.shadowColor = '#ffffff';
+      c.shadowBlur = 5;
+      c.beginPath();
+      const gSize = 11; // 8 to 11
       c.moveTo(gx, gy - gSize);
       c.lineTo(gx + gSize, gy);
       c.lineTo(gx, gy + gSize);
@@ -577,7 +659,17 @@ function generateProceduralTemplateDataUrl(theme, isRare = false) {
       c.closePath();
       c.fill();
       
-      // Little white specular highlight
+      // Drawing cut lines in the gemstone
+      c.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+      c.lineWidth = 1;
+      c.beginPath();
+      c.moveTo(gx - gSize, gy);
+      c.lineTo(gx + gSize, gy);
+      c.moveTo(gx, gy - gSize);
+      c.lineTo(gx, gy + gSize);
+      c.stroke();
+      
+      // Little white highlight specular dot
       c.fillStyle = '#ffffff';
       c.fillRect(gx - 2, gy - 2, 4, 4);
       c.restore();
@@ -602,12 +694,19 @@ function generateProceduralTemplateDataUrl(theme, isRare = false) {
   c.fillRect(50, 50, 700, 150);
   
   c.strokeStyle = (theme === 'sr' || isRare) ? '#b45309' : (theme === 'ur' ? '#6d28d9' : '#334155');
-  c.lineWidth = 3.5;
+  c.lineWidth = isRare ? 5 : 3.5; // Thicker border for rare
   c.strokeRect(50, 50, 700, 150);
   
   c.strokeStyle = (theme === 'sr' || theme === 'ur' || isRare) ? '#fbbf24' : innerCol;
   c.lineWidth = 1;
   c.strokeRect(52, 52, 696, 146);
+  
+  // Extra outer outline for Rare Grid Box
+  if (isRare) {
+    c.strokeStyle = ['red', 'yellow', 'green', 'pink', 'sr'].includes(theme) ? 'rgba(255, 215, 0, 0.7)' : 'rgba(192, 132, 252, 0.7)';
+    c.lineWidth = 1.5;
+    c.strokeRect(46, 46, 708, 158);
+  }
   
   // 5. Middle Grid (Window outline)
   c.strokeStyle = (theme === 'sr' || isRare) ? '#78350f' : (theme === 'ur' ? '#5b21b6' : '#1e293b');
@@ -623,12 +722,19 @@ function generateProceduralTemplateDataUrl(theme, isRare = false) {
   c.fillRect(50, 690, 700, 260);
   
   c.strokeStyle = (theme === 'sr' || isRare) ? '#b45309' : (theme === 'ur' ? '#6d28d9' : '#334155');
-  c.lineWidth = 3.5;
+  c.lineWidth = isRare ? 5 : 3.5; // Thicker border for rare
   c.strokeRect(50, 690, 700, 260);
   
   c.strokeStyle = (theme === 'sr' || theme === 'ur' || isRare) ? '#fbbf24' : innerCol;
   c.lineWidth = 1;
   c.strokeRect(52, 692, 696, 256);
+  
+  // Extra outer outline for Rare Bottom Box
+  if (isRare) {
+    c.strokeStyle = ['red', 'yellow', 'green', 'pink', 'sr'].includes(theme) ? 'rgba(255, 215, 0, 0.7)' : 'rgba(192, 132, 252, 0.7)';
+    c.lineWidth = 1.5;
+    c.strokeRect(46, 686, 708, 268);
+  }
   
   return canvas.toDataURL('image/png');
 }
