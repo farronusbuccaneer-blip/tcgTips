@@ -163,6 +163,7 @@ async function loadTemplatesFromDB() {
   }
   
   // 2. Migration: Check if default templates need a re-seed due to 4:5 aspect ratio update (width 700) or missing rare templates
+  const seededDefaults = templates.filter(t => t.id.startsWith('default_'));
   const needsReseed = seededDefaults.length < 18 || seededDefaults.some(t => !t.grid_config || !t.grid_config.top_grid || t.grid_config.top_grid.width !== 700);
   
   if (needsReseed) {
