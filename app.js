@@ -817,7 +817,8 @@ function drawCard(exporting = false) {
   if (bgImage && grids.middle_grid) {
     ctx.save();
     ctx.beginPath();
-    ctx.rect(grids.middle_grid.x, grids.middle_grid.y, grids.middle_grid.width, grids.middle_grid.height);
+    // Offset by 3px inward to match the inner bounds of the 6px border stroke
+    ctx.rect(grids.middle_grid.x + 3, grids.middle_grid.y + 3, grids.middle_grid.width - 6, grids.middle_grid.height - 6);
     ctx.clip();
     
     // Translate to center of middle grid, apply scaling and dragging offset
@@ -865,7 +866,8 @@ function drawCard(exporting = false) {
     
     // Clear/Knockout the middle grid area of the template image
     if (grids.middle_grid) {
-      oCtx.clearRect(grids.middle_grid.x, grids.middle_grid.y, grids.middle_grid.width, grids.middle_grid.height);
+      // Clear 3px inward to preserve the template's 6px border stroke outline
+      oCtx.clearRect(grids.middle_grid.x + 3, grids.middle_grid.y + 3, grids.middle_grid.width - 6, grids.middle_grid.height - 6);
     }
     
     // Draw the processed template with transparent window onto main canvas
