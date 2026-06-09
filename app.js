@@ -874,9 +874,170 @@ function drawCard(exporting = false) {
     ctx.drawImage(offscreen, 0, 0);
   }
   
-  // --- Layer 3: Text Rendering (Top & Bottom) ---
+  // --- Layer 3: Text Rendering & Overlays ---
   const textContent = parseMarkdownText(markdownTextarea.value);
-  
+
+  // 3.0 Dynamic Glowing Overlay for Rare Cards (Glow / Sunbeams / Glitter)
+  // Drawn BEFORE text & badges to ensure they layer beautifully on top with maximum legibility.
+  if (textContent.isRare) {
+    ctx.save();
+    
+    // 1. Ambient Glow around Text Boxes (Top & Bottom Grid Plates)
+    const isGoldTheme = ['red', 'yellow', 'green', 'pink', 'sr'].includes(selectedTemplate.theme);
+    const glowColor = isGoldTheme ? 'rgba(255, 215, 0, 0.45)' : 'rgba(192, 132, 252, 0.45)';
+    
+    ctx.shadowColor = glowColor;
+    ctx.shadowBlur = 30;
+    
+    if (grids.top_grid) {
+      ctx.strokeStyle = glowColor;
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(grids.top_grid.x, grids.top_grid.y, grids.top_grid.width, grids.top_grid.height);
+    }
+    if (grids.bottom_grid) {
+      ctx.strokeStyle = glowColor;
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(grids.bottom_grid.x, grids.bottom_grid.y, grids.bottom_grid.width, grids.bottom_grid.height);
+    }
+    ctx.shadowBlur = 0; // Reset shadow
+    
+    // 2. God Rays / Sunbeams (光が差し込む演出)
+    ctx.globalCompositeOperation = 'screen';
+    
+    // Radial glow source at top-left
+    const rayBaseGrad = ctx.createRadialGradient(150, -50, 10, 300, 400, 800);
+    if (isGoldTheme) {
+      rayBaseGrad.addColorStop(0.0, 'rgba(255, 240, 150, 0.25)'); // Bright source
+      rayBaseGrad.addColorStop(0.3, 'rgba(255, 215, 0, 0.12)'); // Gold rays
+      rayBaseGrad.addColorStop(0.7, 'rgba(239, 68, 68, 0.04)'); // Redish warm glow
+      rayBaseGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+    } else {
+      rayBaseGrad.addColorStop(0.0, 'rgba(220, 245, 255, 0.25)');
+      rayBaseGrad.addColorStop(0.3, 'rgba(34, 211, 238, 0.12)');
+      rayBaseGrad.addColorStop(0.7, 'rgba(168, 85, 247, 0.04)');
+      rayBaseGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+    }
+    ctx.fillStyle = rayBaseGrad;
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    
+    // Draw sunbeam shafts radiating from top-left (150, -50)
+    const drawSunbeam = (angleStart, angleEnd, opacity) => {
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      
+      const beamGrad = ctx.createLinearGradient(150, -50, 500, 900);
+      if (isGoldTheme) {
+        beamGrad.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+        beamGrad.addColorStop(0.4, 'rgba(255, 225, 100, 0.15)');
+        beamGrad.addColorStop(1, 'rgba(255, 215, 0, 0)');
+      } else {
+        beamGrad.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+        beamGrad.addColorStop(0.4, 'rgba(150, 235, 255, 0.15)');
+        beamGrad.addColorStop(1, 'rgba(168, 85, 247, 0)');
+      }
+      ctx.fillStyle = beamGrad;
+      
+      ctx.beginPath();
+      ctx.moveTo(150, -50);
+      const radS = (angleStart * Math.PI) / 180;
+      const radE = (angleEnd * Math.PI) / 180;
+      ctx.lineTo(150 + Math.cos(radS) * 1200, -50 + Math.sin(radS) * 1200);
+      ctx.lineTo(150 + Math.cos(radE) * 1200, -50 + Math.sin(radE) * 1200);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    };
+    
+    drawSunbeam(45, 55, 0.3);
+    drawSunbeam(65, 78, 0.25);
+    drawSunbeam(85, 95, 0.2);
+    drawSunbeam(105, 120, 0.3);
+    
+    // 3. Glistening sparkles (8-point sparkles and tiny glitter dots)
+    const particleColor = isGoldTheme ? '#ffd700' : '#22d3ee';
+    
+    // 8-point high-end sparkle
+    const drawHighEndSparkle = (x, y, size) => {
+      ctx.save();
+      const pg = ctx.createRadialGradient(x, y, 0, x, y, size * 3.5);
+      pg.addColorStop(0, particleColor);
+      pg.addColorStop(0.5, 'rgba(255,255,255,0.4)');
+      pg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = pg;
+      ctx.beginPath();
+      ctx.arc(x, y, size * 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const angle = (Math.PI / 4) * i;
+        const r = i % 2 === 0 ? size : size * 0.4;
+        ctx.lineTo(x + Math.cos(angle) * r, y + Math.sin(angle) * r);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    };
+    
+    // Tiny white glitter dot
+    const drawTinyGlitter = (x, y, r) => {
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = particleColor;
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+    
+    // Coordinate offsets to scatter nicely around elements without obscuring content
+    drawHighEndSparkle(80, 130, 12);
+    drawHighEndSparkle(720, 75, 10);
+    drawHighEndSparkle(120, 270, 11);
+    drawHighEndSparkle(690, 620, 13);
+    drawHighEndSparkle(100, 780, 10);
+    drawHighEndSparkle(710, 890, 12);
+    drawHighEndSparkle(400, 185, 7);
+    drawHighEndSparkle(400, 685, 8);
+    
+    // Scattered tiny glitters
+    drawTinyGlitter(230, 60, 2);
+    drawTinyGlitter(520, 100, 2.5);
+    drawTinyGlitter(60, 210, 1.5);
+    drawTinyGlitter(740, 320, 2);
+    drawTinyGlitter(180, 480, 2.5);
+    drawTinyGlitter(620, 520, 1.5);
+    drawTinyGlitter(280, 720, 2);
+    drawTinyGlitter(550, 800, 2.5);
+    drawTinyGlitter(180, 920, 1.5);
+    drawTinyGlitter(340, 950, 2);
+    
+    // Ambient light orbs
+    const drawDynamicOrb = (x, y, radius) => {
+      ctx.save();
+      const og = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      og.addColorStop(0, 'rgba(255, 255, 255, 0.20)');
+      og.addColorStop(0.5, isGoldTheme ? 'rgba(251, 191, 36, 0.06)' : 'rgba(34, 211, 238, 0.06)');
+      og.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      ctx.fillStyle = og;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+    
+    drawDynamicOrb(150, 140, 25);
+    drawDynamicOrb(600, 110, 20);
+    drawDynamicOrb(220, 320, 35);
+    drawDynamicOrb(580, 500, 40);
+    drawDynamicOrb(250, 850, 25);
+    drawDynamicOrb(680, 920, 24);
+    
+    ctx.restore();
+  }
+
   // 3.1 Title rendering in Top Grid
   if (grids.top_grid && textContent.title) {
     ctx.save();
@@ -905,65 +1066,44 @@ function drawCard(exporting = false) {
     const textY = topGrid.y + topGrid.height / 2;
     
     if (textContent.isRare) {
-      // 1. Outline for legibility (Black/Dark bronze)
-      ctx.strokeStyle = '#120a02';
-      ctx.lineWidth = 8;
+      // 1. Thick base outline (Nearly black for high contrast)
+      ctx.strokeStyle = '#0a0500';
+      ctx.lineWidth = 12;
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
       ctx.strokeText(textContent.title, textX, textY);
       
       // 2. Inner groove shadow (Emboss/Engraved depth shadow)
-      ctx.strokeStyle = '#5c3d10';
-      ctx.lineWidth = 4;
-      ctx.strokeText(textContent.title, textX + 1.5, textY + 1.5);
+      ctx.strokeStyle = '#3e2508';
+      ctx.lineWidth = 8;
+      ctx.strokeText(textContent.title, textX + 2, textY + 2);
       
-      // 3. Metallic Gold Gradient Fill (3D Bevel effect)
+      // 3. Metallic Gold Gradient Fill
       const grad = ctx.createLinearGradient(0, topGrid.y + (topGrid.height - fitSize) / 2, 0, topGrid.y + (topGrid.height + fitSize) / 2);
-      grad.addColorStop(0.0, '#926315'); // Dark gold / bronze
-      grad.addColorStop(0.15, '#b8860b'); // Muted gold
+      grad.addColorStop(0.0, '#80530d'); // Dark gold / bronze
+      grad.addColorStop(0.15, '#cca01a'); // Medium gold
       grad.addColorStop(0.35, '#ffd700'); // Bright gold
       grad.addColorStop(0.5, '#ffffff'); // Reflective highlight white
       grad.addColorStop(0.65, '#ffd700'); // Bright gold
-      grad.addColorStop(0.85, '#cca01a'); // Medium gold
-      grad.addColorStop(1.0, '#784a08'); // Shadow gold
+      grad.addColorStop(0.85, '#cca01a');
+      grad.addColorStop(1.0, '#664005'); // Shadow gold
       
       ctx.fillStyle = grad;
       ctx.fillText(textContent.title, textX, textY);
       
-      // 4. Specular Bevel Highlight (Top-left offset)
-      ctx.strokeStyle = 'rgba(255, 250, 230, 0.9)'; // Ivory/White-gold
-      ctx.lineWidth = 1;
-      ctx.strokeText(textContent.title, textX - 0.8, textY - 0.8);
+      // 4. Infill outline to slim down the gold core and thicken the engraved silhouette
+      ctx.strokeStyle = '#1a0d00';
+      ctx.lineWidth = 3.5;
+      ctx.strokeText(textContent.title, textX, textY);
+      
+      // 5. Specular Bevel Highlight (Top-left offset)
+      ctx.strokeStyle = 'rgba(255, 255, 235, 0.95)';
+      ctx.lineWidth = 1.2;
+      ctx.strokeText(textContent.title, textX - 1.2, textY - 1.2);
     } else {
       ctx.fillStyle = '#0f172a';
       ctx.fillText(textContent.title, textX, textY);
     }
-    ctx.restore();
-  }
-  
-  // 3.3 Draw Type Tag Badge in Top Grid
-  if (grids.top_grid && selectedTemplate.tag_text && selectedTemplate.tag_text !== 'なし') {
-    const topGrid = grids.top_grid;
-    const tag = selectedTemplate.tag_text;
-    const colors = getTagColor(tag);
-    
-    ctx.save();
-    // Calculate dynamic badge width
-    ctx.font = 'bold 15px Inter, sans-serif';
-    const textWidth = ctx.measureText(tag).width;
-    const badgeW = Math.max(86, textWidth + 24);
-    const badgeH = 30;
-    const badgeX = topGrid.x + topGrid.width - badgeW - 12;
-    const badgeY = topGrid.y + topGrid.height - badgeH - 12;
-    
-    // Draw badge background & border
-    drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 6, colors.bg, colors.border, 1.5);
-    
-    // Draw badge text
-    ctx.fillStyle = colors.text;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(tag, badgeX + badgeW / 2, badgeY + badgeH / 2);
     ctx.restore();
   }
   
@@ -1006,7 +1146,6 @@ function drawCard(exporting = false) {
     const count = rows.length;
     
     rows.forEach((row, idx) => {
-      // Determine vertical position factor based on total rows present
       let yFactor;
       if (count === 3) {
         if (idx === 0) yFactor = 0.22;
@@ -1042,120 +1181,26 @@ function drawCard(exporting = false) {
     ctx.restore();
   }
 
-  // --- Layer 3.4: Dynamic Glowing Overlay for Rare Cards ---
-  if (textContent.isRare) {
+  // 3.3 Draw Type Tag Badge in Top Grid
+  if (grids.top_grid && selectedTemplate.tag_text && selectedTemplate.tag_text !== 'なし') {
+    const topGrid = grids.top_grid;
+    const tag = selectedTemplate.tag_text;
+    const colors = getTagColor(tag);
+    
     ctx.save();
+    ctx.font = 'bold 15px Inter, sans-serif';
+    const textWidth = ctx.measureText(tag).width;
+    const badgeW = Math.max(86, textWidth + 24);
+    const badgeH = 30;
+    const badgeX = topGrid.x + topGrid.width - badgeW - 12;
+    const badgeY = topGrid.y + topGrid.height - badgeH - 12;
     
-    // 1. Ambient Glow around Text Boxes (Top & Bottom Grid Plates)
-    const isGoldTheme = ['red', 'yellow', 'green', 'pink', 'sr'].includes(selectedTemplate.theme);
-    const glowColor = isGoldTheme ? 'rgba(255, 215, 0, 0.4)' : 'rgba(192, 132, 252, 0.4)';
+    drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 6, colors.bg, colors.border, 1.5);
     
-    ctx.shadowColor = glowColor;
-    ctx.shadowBlur = 25;
-    
-    if (grids.top_grid) {
-      ctx.strokeStyle = glowColor;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(grids.top_grid.x, grids.top_grid.y, grids.top_grid.width, grids.top_grid.height);
-    }
-    if (grids.bottom_grid) {
-      ctx.strokeStyle = glowColor;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(grids.bottom_grid.x, grids.bottom_grid.y, grids.bottom_grid.width, grids.bottom_grid.height);
-    }
-    ctx.shadowBlur = 0; // Reset shadow
-    
-    // 2. Diagonal Holographic Spectral Rays
-    ctx.globalCompositeOperation = 'screen';
-    const holoGrad = ctx.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    
-    if (isGoldTheme) {
-      holoGrad.addColorStop(0.0, 'rgba(255, 215, 0, 0.08)');
-      holoGrad.addColorStop(0.25, 'rgba(239, 68, 68, 0.06)');
-      holoGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.10)');
-      holoGrad.addColorStop(0.75, 'rgba(245, 158, 11, 0.06)');
-      holoGrad.addColorStop(1.0, 'rgba(255, 215, 0, 0.08)');
-    } else {
-      holoGrad.addColorStop(0.0, 'rgba(99, 102, 241, 0.07)');
-      holoGrad.addColorStop(0.25, 'rgba(168, 85, 247, 0.07)');
-      holoGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.12)');
-      holoGrad.addColorStop(0.75, 'rgba(6, 182, 212, 0.07)');
-      holoGrad.addColorStop(1.0, 'rgba(236, 72, 153, 0.07)');
-    }
-    
-    ctx.fillStyle = holoGrad;
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    
-    // Draw diagonal glowing light sweeps
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-    const drawSweep = (offsetX) => {
-      ctx.beginPath();
-      ctx.moveTo(offsetX, 0);
-      ctx.lineTo(offsetX + 150, 0);
-      ctx.lineTo(offsetX - 250, CANVAS_HEIGHT);
-      ctx.lineTo(offsetX - 400, CANVAS_HEIGHT);
-      ctx.closePath();
-      ctx.fill();
-    };
-    drawSweep(300);
-    drawSweep(700);
-    
-    // 3. Dynamic Star Sparkles & Light Orbs (Scattered Legibly)
-    const particleColor = isGoldTheme ? '#ffd700' : '#22d3ee';
-    
-    const drawDynamicSparkle = (x, y, size) => {
-      ctx.save();
-      const pg = ctx.createRadialGradient(x, y, 0, x, y, size * 3);
-      pg.addColorStop(0, particleColor);
-      pg.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = pg;
-      ctx.beginPath();
-      ctx.arc(x, y, size * 3, 0, Math.PI * 2);
-      ctx.fill();
-      
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.moveTo(x, y - size);
-      ctx.quadraticCurveTo(x, y, x + size, y);
-      ctx.quadraticCurveTo(x, y, x, y + size);
-      ctx.quadraticCurveTo(x, y, x - size, y);
-      ctx.quadraticCurveTo(x, y, x, y - size);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    };
-    
-    const drawDynamicOrb = (x, y, radius) => {
-      ctx.save();
-      const og = ctx.createRadialGradient(x, y, 0, x, y, radius);
-      og.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
-      og.addColorStop(0.5, isGoldTheme ? 'rgba(251, 191, 36, 0.08)' : 'rgba(34, 211, 238, 0.08)');
-      og.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      ctx.fillStyle = og;
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    };
-    
-    // Sparkle coordinates (Scatter safely across the card)
-    drawDynamicSparkle(90, 80, 8);
-    drawDynamicSparkle(710, 170, 6);
-    drawDynamicSparkle(120, 250, 10);
-    drawDynamicSparkle(680, 640, 9);
-    drawDynamicSparkle(150, 910, 7);
-    drawDynamicSparkle(650, 740, 8);
-    drawDynamicSparkle(400, 185, 5);
-    drawDynamicSparkle(400, 685, 6);
-    
-    // Orb coordinates (Scatter safely)
-    drawDynamicOrb(150, 140, 25);
-    drawDynamicOrb(620, 90, 18);
-    drawDynamicOrb(220, 320, 30);
-    drawDynamicOrb(580, 500, 35);
-    drawDynamicOrb(250, 850, 20);
-    drawDynamicOrb(680, 920, 22);
-    
+    ctx.fillStyle = colors.text;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(tag, badgeX + badgeW / 2, badgeY + badgeH / 2);
     ctx.restore();
   }
 
