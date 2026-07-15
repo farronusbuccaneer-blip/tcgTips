@@ -743,6 +743,7 @@ function generateProceduralTemplateDataUrl(theme, isRare = false) {
 function parseMarkdownText(text) {
   const titleMatch = text.match(/<title>([\s\S]*?)<\/title>/i);
   const categoryMatch = text.match(/<category>([\s\S]*?)<\/category>/i);
+  const cefrMatch = text.match(/<cefr>([\s\S]*?)<\/cefr>/i);
   const section1Match = text.match(/<section1>([\s\S]*?)<\/section1>/i);
   
   let row1 = '';
@@ -776,10 +777,23 @@ function parseMarkdownText(text) {
     title: cleanTitle,
     isRare: isRare,
     category: categoryMatch ? categoryMatch[1].trim() : '',
+    cefr: cefrMatch ? cefrMatch[1].trim().toUpperCase() : '',
     row1,
     row2,
     row3
   };
+}
+
+function getCefrStars(cefr) {
+  switch (cefr) {
+    case 'A1': return '★☆☆☆☆☆';
+    case 'A2': return '★★☆☆☆☆';
+    case 'B1': return '★★★☆☆☆';
+    case 'B2': return '★★★★☆☆';
+    case 'C1': return '★★★★★☆';
+    case 'C2': return '★★★★★★';
+    default: return '';
+  }
 }
 
 // --- Font Auto-fitting Logic ---
@@ -1202,6 +1216,33 @@ function drawCard(exporting = false) {
     ctx.textBaseline = 'middle';
     ctx.fillText(tag, badgeX + badgeW / 2, badgeY + badgeH / 2);
     ctx.restore();
+  }
+
+  // 3.5 Draw CEFR Level Stars in Top Grid (Bottom-Left)
+  if (grids.top_grid && textContent.cefr) {
+    const stars = getCefrStars(textContent.cefr);
+    if (stars) {
+      ctx.save();
+      
+      const isGoldTheme = ['red', 'yellow', 'green', 'pink', 'sr'].includes(selectedTemplate.theme);
+      let starColor = '#475569'; // Default Slate Gray
+      
+      if (textContent.isRare) {
+        starColor = isGoldTheme ? '#8a6d3b' : '#5b21b6';
+      }
+      
+      ctx.font = 'bold 16px "Outfit", "Inter", sans-serif';
+      ctx.fillStyle = starColor;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      
+      const topGrid = grids.top_grid;
+      const starsX = topGrid.x + 20;
+      const starsY = topGrid.y + topGrid.height - 15;
+      
+      ctx.fillText(stars, starsX, starsY);
+      ctx.restore();
+    }
   }
 
   // --- Layer 5: SNS Handle / Watermark ---
