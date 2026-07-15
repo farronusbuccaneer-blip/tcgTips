@@ -1231,16 +1231,16 @@ function drawCard(exporting = false) {
         starColor = isGoldTheme ? '#8a6d3b' : '#5b21b6';
       }
       
-      ctx.font = 'bold 16px "Outfit", "Inter", sans-serif';
+      ctx.font = 'bold 22px "Outfit", "Inter", sans-serif';
       ctx.fillStyle = starColor;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'bottom';
       
       const topGrid = grids.top_grid;
       const starsX = topGrid.x + 20;
-      const starsY = topGrid.y + topGrid.height - 15;
+      const starsY = topGrid.y + topGrid.height - 12;
       
-      ctx.fillText(stars, starsX, starsY);
+      ctx.fillText('CEFR ' + stars, starsX, starsY);
       ctx.restore();
     }
   }
