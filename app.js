@@ -1240,7 +1240,7 @@ function drawCard(exporting = false) {
       const starsX = topGrid.x + 20;
       const starsY = topGrid.y + topGrid.height - 12;
       
-      ctx.fillText('CEFR ' + stars, starsX, starsY);
+      ctx.fillText('CEFR ' + stars + ' ' + textContent.cefr, starsX, starsY);
       ctx.restore();
     }
   }
