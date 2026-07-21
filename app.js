@@ -14,6 +14,12 @@ let activeGridType = 'middle'; // 'top', 'middle', 'bottom'
 let animFrameId = null;
 let isRecording = false;
 
+// BGM Audio State
+let bgmList = [];
+let selectedBgmId = 'none';
+let previewAudio = null;
+let isPreviewPlaying = false;
+
 const bgPos = {
   x: 0,
   y: 0,
@@ -54,6 +60,13 @@ const ctx = cardCanvas.getContext('2d');
 const btnDownload = document.getElementById('btn-download');
 const btnClearMarkdown = document.getElementById('btn-clear-markdown');
 
+// BGM DOM Elements
+const bgmSection = document.getElementById('bgm-section');
+const selectBgm = document.getElementById('select-bgm');
+const bgmUpload = document.getElementById('bgm-upload');
+const btnPreviewBgm = document.getElementById('btn-preview-bgm');
+const btnDeleteBgm = document.getElementById('btn-delete-bgm');
+
 // Grid Sliders
 const sliderX = document.getElementById('input-x');
 const sliderY = document.getElementById('input-y');
@@ -78,8 +91,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 1. Init DB
     await initDatabase();
     
-    // 2. Load Templates
+    // 2. Load Templates & BGMs
     await loadTemplatesFromDB();
+    await loadBgmsFromDB();
 
     // 3. Set default markdown text
     markdownTextarea.value = DEFAULT_TEXT;
@@ -93,14 +107,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (error) {
     console.error('Initialization failed:', error);
-    alert('データベースの初期化に失敗しました。\n\n【エラー詳細】\n' + error.message + '\n\n【スタックトレース】\n' + error.stack);
+    alert('データベースの初期化に失敗しました。\n\n【エラー詳細】\n' + error.message + '\n\n【スタックトレーシング】\n' + error.stack);
   }
 });
 
 // --- IndexedDB Functions ---
 function initDatabase() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('FlashCardDB', 1);
+    const request = indexedDB.open('FlashCardDB', 2);
 
     request.onerror = (event) => reject(event.target.error);
 
@@ -114,7 +128,40 @@ function initDatabase() {
       if (!db.objectStoreNames.contains('CardTemplate')) {
         db.createObjectStore('CardTemplate', { keyPath: 'id' });
       }
+      if (!db.objectStoreNames.contains('BgmStore')) {
+        db.createObjectStore('BgmStore', { keyPath: 'id' });
+      }
     };
+  });
+}
+
+function getBgmsFromStore() {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(['BgmStore'], 'readonly');
+    const store = transaction.objectStore('BgmStore');
+    const request = store.getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function saveBgmToStore(bgmItem) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(['BgmStore'], 'readwrite');
+    const store = transaction.objectStore('BgmStore');
+    const request = store.put(bgmItem);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function deleteBgmFromStore(id) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(['BgmStore'], 'readwrite');
+    const store = transaction.objectStore('BgmStore');
+    const request = store.delete(id);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
   });
 }
 
@@ -351,6 +398,119 @@ async function deleteTemplate(id) {
   }
   
   await loadTemplatesFromDB();
+}
+
+// --- BGM Audio Management Functions ---
+async function loadBgmsFromDB() {
+  try {
+    bgmList = await getBgmsFromStore();
+    renderBgmDropdown();
+  } catch (err) {
+    console.warn('Failed to load BGMs from IndexedDB:', err);
+  }
+}
+
+function renderBgmDropdown() {
+  if (!selectBgm) return;
+  selectBgm.innerHTML = `
+    <option value="none">🎵 BGMなし</option>
+    ${bgmList.map(bgm => `<option value="${bgm.id}">🎵 ${bgm.name}</option>`).join('')}
+    <option value="upload">+ 新しいBGMをアップロード...</option>
+  `;
+  selectBgm.value = selectedBgmId;
+  
+  const hasSelectedBgm = selectedBgmId !== 'none' && selectedBgmId !== 'upload';
+  if (btnPreviewBgm) btnPreviewBgm.disabled = !hasSelectedBgm;
+  if (btnDeleteBgm) btnDeleteBgm.disabled = !hasSelectedBgm;
+}
+
+function handleBgmSelectChange() {
+  const val = selectBgm.value;
+  stopBgmPreview();
+  
+  if (val === 'upload') {
+    bgmUpload.click();
+    selectBgm.value = selectedBgmId;
+  } else {
+    selectedBgmId = val;
+    renderBgmDropdown();
+  }
+}
+
+async function handleBgmUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  const bgmId = 'bgm_' + Date.now();
+  const bgmItem = {
+    id: bgmId,
+    name: file.name,
+    audioData: file,
+    createdAt: Date.now()
+  };
+  
+  try {
+    await saveBgmToStore(bgmItem);
+    bgmList.push(bgmItem);
+    selectedBgmId = bgmId;
+    renderBgmDropdown();
+  } catch (err) {
+    console.error('Failed to save BGM:', err);
+    alert('BGMの保存に失敗しました: ' + err.message);
+  } finally {
+    bgmUpload.value = '';
+  }
+}
+
+async function deleteSelectedBgm() {
+  if (selectedBgmId === 'none' || selectedBgmId === 'upload') return;
+  
+  const target = bgmList.find(b => b.id === selectedBgmId);
+  if (!target) return;
+  
+  if (confirm(`BGM「${target.name}」を削除してもよろしいですか？`)) {
+    stopBgmPreview();
+    await deleteBgmFromStore(selectedBgmId);
+    bgmList = bgmList.filter(b => b.id !== selectedBgmId);
+    selectedBgmId = 'none';
+    renderBgmDropdown();
+  }
+}
+
+function toggleBgmPreview() {
+  if (isPreviewPlaying) {
+    stopBgmPreview();
+  } else {
+    startBgmPreview();
+  }
+}
+
+function startBgmPreview() {
+  stopBgmPreview();
+  const target = bgmList.find(b => b.id === selectedBgmId);
+  if (!target || !target.audioData) return;
+  
+  const url = URL.createObjectURL(target.audioData);
+  previewAudio = new Audio(url);
+  previewAudio.loop = true;
+  previewAudio.play().then(() => {
+    isPreviewPlaying = true;
+    if (btnPreviewBgm) btnPreviewBgm.textContent = '⏹ 停止';
+  }).catch(err => console.warn('BGM preview play failed:', err));
+  
+  previewAudio.onended = stopBgmPreview;
+}
+
+function stopBgmPreview() {
+  if (previewAudio) {
+    previewAudio.pause();
+    if (previewAudio.src && previewAudio.src.startsWith('blob:')) {
+      URL.revokeObjectURL(previewAudio.src);
+    }
+    previewAudio = null;
+  }
+  isPreviewPlaying = false;
+  if (btnPreviewBgm) btnPreviewBgm.textContent = '▶ 試聴';
 }
 
 function generateProceduralTemplateDataUrl(theme, isRare = false) {
@@ -1366,6 +1526,12 @@ function setupEventListeners() {
   btnClearBg.addEventListener('click', clearBackground);
   btnResetBgPos.addEventListener('click', resetBackgroundPosition);
   
+  // BGM Controls Listeners
+  if (selectBgm) selectBgm.addEventListener('change', handleBgmSelectChange);
+  if (bgmUpload) bgmUpload.addEventListener('change', handleBgmUpload);
+  if (btnPreviewBgm) btnPreviewBgm.addEventListener('click', toggleBgmPreview);
+  if (btnDeleteBgm) btnDeleteBgm.addEventListener('click', deleteSelectedBgm);
+  
   // Tag Helper Insertion
   document.querySelectorAll('.tag-helper').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1533,6 +1699,7 @@ function stopAnimationLoop() {
 
 function cleanupBackgroundMedia() {
   stopAnimationLoop();
+  stopBgmPreview();
   if (bgImage && bgImage.src && bgImage.src.startsWith('blob:')) {
     URL.revokeObjectURL(bgImage.src);
   }
@@ -1575,6 +1742,7 @@ function handleBackgroundUpload(e) {
       bgFilenameEl.textContent = `${bgFilename} (動画)`;
       bgStatusBar.style.display = 'flex';
       btnResetBgPos.disabled = false;
+      if (bgmSection) bgmSection.style.display = 'block';
       updateDownloadButtonUI();
       
       startAnimationLoop();
@@ -1589,6 +1757,8 @@ function handleBackgroundUpload(e) {
       bgFilenameEl.textContent = bgFilename;
       bgStatusBar.style.display = 'flex';
       btnResetBgPos.disabled = false;
+      if (bgmSection) bgmSection.style.display = 'none';
+      stopBgmPreview();
       updateDownloadButtonUI();
       
       drawCard();
@@ -1603,6 +1773,8 @@ function clearBackground() {
   bgStatusBar.style.display = 'none';
   btnResetBgPos.disabled = true;
   bgUpload.value = '';
+  if (bgmSection) bgmSection.style.display = 'none';
+  stopBgmPreview();
   updateDownloadButtonUI();
   
   drawCard();
@@ -1878,7 +2050,37 @@ async function downloadCardImage() {
     let selectedMimeType = mimeTypes.find(type => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type)) || '';
     
     // Stream canvas at 60 FPS for smooth high quality recording
-    const stream = cardCanvas.captureStream(60);
+    const canvasStream = cardCanvas.captureStream(60);
+    let finalStream = canvasStream;
+    let recAudio = null;
+    let recAudioCtx = null;
+    
+    // Check if a BGM track is selected and synthesize audio into stream
+    const activeBgm = bgmList.find(b => b.id === selectedBgmId);
+    if (activeBgm && activeBgm.audioData) {
+      try {
+        const audioBlobUrl = URL.createObjectURL(activeBgm.audioData);
+        recAudio = new Audio(audioBlobUrl);
+        recAudio.loop = true;
+        
+        recAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = recAudioCtx.createMediaElementSource(recAudio);
+        const dest = recAudioCtx.createMediaStreamDestination();
+        source.connect(dest);
+        
+        const audioTracks = dest.stream.getAudioTracks();
+        if (audioTracks.length > 0) {
+          finalStream = new MediaStream([
+            ...canvasStream.getVideoTracks(),
+            audioTracks[0]
+          ]);
+        }
+        recAudio.play().catch(e => console.warn('BGM play during recording:', e));
+      } catch (err) {
+        console.warn('BGM stream synthesis failed, proceeding with video stream:', err);
+      }
+    }
+
     let recorderOptions = {
       videoBitsPerSecond: 8000000 // 8 Mbps high quality video encoding
     };
@@ -1888,10 +2090,10 @@ async function downloadCardImage() {
     
     let mediaRecorder;
     try {
-      mediaRecorder = new MediaRecorder(stream, recorderOptions);
+      mediaRecorder = new MediaRecorder(finalStream, recorderOptions);
     } catch (err) {
       console.warn('MediaRecorder init with options failed, fallback to default:', err);
-      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder = new MediaRecorder(finalStream);
     }
     
     const chunks = [];
@@ -1902,6 +2104,19 @@ async function downloadCardImage() {
     };
 
     mediaRecorder.onstop = () => {
+      // Clean up BGM audio resources
+      if (recAudio) {
+        recAudio.pause();
+        if (recAudio.src && recAudio.src.startsWith('blob:')) {
+          URL.revokeObjectURL(recAudio.src);
+        }
+        recAudio = null;
+      }
+      if (recAudioCtx) {
+        recAudioCtx.close().catch(() => {});
+        recAudioCtx = null;
+      }
+
       const finalMime = mediaRecorder.mimeType || selectedMimeType || 'video/mp4';
       const ext = finalMime.includes('mp4') ? 'mp4' : 'webm';
       const blob = new Blob(chunks, { type: finalMime });
