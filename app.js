@@ -7,8 +7,12 @@ let db = null;
 let templates = [];
 let selectedTemplate = null;
 let bgImage = null; // HTMLImageElement
+let bgVideo = null; // HTMLVideoElement
+let bgType = null; // 'image' | 'video' | null
 let bgFilename = '';
 let activeGridType = 'middle'; // 'top', 'middle', 'bottom'
+let animFrameId = null;
+let isRecording = false;
 
 const bgPos = {
   x: 0,
@@ -827,8 +831,9 @@ function drawCard(exporting = false) {
   const grids = selectedTemplate.grid_config;
   console.log('[FlashCard Studio] middle_grid config:', grids ? grids.middle_grid : 'undefined');
   
-  // --- Layer 1: Background Image (Clipped inside Middle Grid) ---
-  if (bgImage && grids.middle_grid) {
+  // --- Layer 1: Background Material (Image or Video clipped inside Middle Grid) ---
+  const hasBg = (bgType === 'video' && bgVideo) || (bgType === 'image' && bgImage);
+  if (hasBg && grids.middle_grid) {
     ctx.save();
     ctx.beginPath();
     // Offset by 3px inward to match the inner bounds of the 6px border stroke
@@ -842,8 +847,12 @@ function drawCard(exporting = false) {
     ctx.translate(cx + bgPos.x, cy + bgPos.y);
     ctx.scale(bgPos.scale, bgPos.scale);
     
-    // Draw background image centered
-    ctx.drawImage(bgImage, -bgImage.width / 2, -bgImage.height / 2, bgImage.width, bgImage.height);
+    // Draw background video or image centered
+    if (bgType === 'video' && bgVideo) {
+      ctx.drawImage(bgVideo, -bgVideo.videoWidth / 2, -bgVideo.videoHeight / 2, bgVideo.videoWidth, bgVideo.videoHeight);
+    } else if (bgType === 'image' && bgImage) {
+      ctx.drawImage(bgImage, -bgImage.width / 2, -bgImage.height / 2, bgImage.width, bgImage.height);
+    }
     ctx.restore();
   } else {
     // Fill middle grid with dark placeholder pattern when no image uploaded
@@ -1502,58 +1511,119 @@ async function handleTemplateUpload(e) {
   templateUpload.value = '';
 }
 
+function startAnimationLoop() {
+  if (animFrameId) return;
+  function loop() {
+    drawCard();
+    if (bgType === 'video' || isRecording) {
+      animFrameId = requestAnimationFrame(loop);
+    } else {
+      animFrameId = null;
+    }
+  }
+  animFrameId = requestAnimationFrame(loop);
+}
+
+function stopAnimationLoop() {
+  if (animFrameId) {
+    cancelAnimationFrame(animFrameId);
+    animFrameId = null;
+  }
+}
+
+function cleanupBackgroundMedia() {
+  stopAnimationLoop();
+  if (bgImage && bgImage.src && bgImage.src.startsWith('blob:')) {
+    URL.revokeObjectURL(bgImage.src);
+  }
+  if (bgVideo) {
+    if (bgVideo.src && bgVideo.src.startsWith('blob:')) {
+      URL.revokeObjectURL(bgVideo.src);
+    }
+    bgVideo.pause();
+    bgVideo.removeAttribute('src');
+    bgVideo.load();
+  }
+  bgImage = null;
+  bgVideo = null;
+  bgType = null;
+}
+
 function handleBackgroundUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
   
   bgFilename = file.name;
+  cleanupBackgroundMedia();
   
-  // Clean up older object URLs to avoid memory leaks
-  if (bgImage && bgImage.src.startsWith('blob:')) {
-    URL.revokeObjectURL(bgImage.src);
+  const mediaURL = URL.createObjectURL(file);
+  
+  if (file.type.startsWith('video/')) {
+    bgType = 'video';
+    bgVideo = document.createElement('video');
+    bgVideo.src = mediaURL;
+    bgVideo.muted = true;
+    bgVideo.loop = true;
+    bgVideo.playsInline = true;
+    bgVideo.autoplay = true;
+    
+    bgVideo.play().catch(err => console.warn('Video autoplay suppressed:', err));
+    
+    bgVideo.onloadedmetadata = () => {
+      calculateCoverScale();
+      
+      bgFilenameEl.textContent = `${bgFilename} (動画)`;
+      bgStatusBar.style.display = 'flex';
+      btnResetBgPos.disabled = false;
+      updateDownloadButtonUI();
+      
+      startAnimationLoop();
+    };
+  } else {
+    bgType = 'image';
+    bgImage = new Image();
+    bgImage.src = mediaURL;
+    bgImage.onload = () => {
+      calculateCoverScale();
+      
+      bgFilenameEl.textContent = bgFilename;
+      bgStatusBar.style.display = 'flex';
+      btnResetBgPos.disabled = false;
+      updateDownloadButtonUI();
+      
+      drawCard();
+    };
   }
-  
-  const imgURL = URL.createObjectURL(file);
-  
-  bgImage = new Image();
-  bgImage.src = imgURL;
-  bgImage.onload = () => {
-    calculateCoverScale();
-    
-    // Update UI status bar
-    bgFilenameEl.textContent = bgFilename;
-    bgStatusBar.style.display = 'flex';
-    btnResetBgPos.disabled = false;
-    
-    drawCard();
-  };
 }
 
 function clearBackground() {
-  if (bgImage && bgImage.src.startsWith('blob:')) {
-    URL.revokeObjectURL(bgImage.src);
-  }
+  cleanupBackgroundMedia();
   
-  bgImage = null;
   bgFilename = '';
   bgStatusBar.style.display = 'none';
   btnResetBgPos.disabled = true;
   bgUpload.value = '';
+  updateDownloadButtonUI();
   
   drawCard();
 }
 
 function calculateCoverScale() {
-  if (!bgImage || !selectedTemplate) return;
+  const hasBg = (bgType === 'video' && bgVideo) || (bgType === 'image' && bgImage);
+  if (!hasBg || !selectedTemplate) return;
   
   const grids = selectedTemplate.grid_config;
   if (!grids.middle_grid) return;
   
   const middleGrid = grids.middle_grid;
-  const scaleX = middleGrid.width / bgImage.width;
-  const scaleY = middleGrid.height / bgImage.height;
+  const w = bgType === 'video' ? bgVideo.videoWidth : bgImage.width;
+  const h = bgType === 'video' ? bgVideo.videoHeight : bgImage.height;
   
-  // Keep proportional cover scale
+  if (!w || !h) return;
+  
+  const scaleX = middleGrid.width / w;
+  const scaleY = middleGrid.height / h;
+  
   bgPos.scale = Math.max(scaleX, scaleY);
   bgPos.x = 0;
   bgPos.y = 0;
@@ -1655,10 +1725,14 @@ async function resetCurrentGridConfig() {
 }
 
 // --- Canvas Dragging and Scaling Interactions ---
+function hasBackgroundMedia() {
+  return (bgType === 'video' && bgVideo) || (bgType === 'image' && bgImage);
+}
+
 function setupCanvasDragAndZoom() {
   // Prevent page scroll when scroll on canvas wrapper
   cardCanvas.addEventListener('wheel', (e) => {
-    if (bgImage) {
+    if (hasBackgroundMedia()) {
       e.preventDefault();
     }
   }, { passive: false });
@@ -1667,7 +1741,7 @@ function setupCanvasDragAndZoom() {
   
   // Mouse Drag Events
   cardCanvas.addEventListener('mousedown', (e) => {
-    if (!bgImage) return;
+    if (!hasBackgroundMedia()) return;
     isDragging = true;
     startX = e.clientX;
     startY = e.clientY;
@@ -1675,7 +1749,7 @@ function setupCanvasDragAndZoom() {
   });
   
   window.addEventListener('mousemove', (e) => {
-    if (!isDragging || !bgImage) return;
+    if (!isDragging || !hasBackgroundMedia()) return;
     
     const dx = e.clientX - startX;
     const dy = e.clientY - startY;
@@ -1701,14 +1775,14 @@ function setupCanvasDragAndZoom() {
 
   // Touch Drag Events
   cardCanvas.addEventListener('touchstart', (e) => {
-    if (!bgImage || e.touches.length !== 1) return;
+    if (!hasBackgroundMedia() || e.touches.length !== 1) return;
     isDragging = true;
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
   }, { passive: true });
 
   cardCanvas.addEventListener('touchmove', (e) => {
-    if (!isDragging || !bgImage || e.touches.length !== 1) return;
+    if (!isDragging || !hasBackgroundMedia() || e.touches.length !== 1) return;
     
     const dx = e.touches[0].clientX - startX;
     const dy = e.touches[0].clientY - startY;
@@ -1732,7 +1806,7 @@ function setupCanvasDragAndZoom() {
 }
 
 function handleCanvasWheel(e) {
-  if (!bgImage) return;
+  if (!hasBackgroundMedia()) return;
   e.preventDefault();
   
   const zoomFactor = 1.06;
@@ -1749,30 +1823,141 @@ function handleCanvasWheel(e) {
 }
 
 // --- Download Output Card ---
-function downloadCardImage() {
-  if (!selectedTemplate) return;
-  
-  // Render without guides first
-  drawCard(true);
+function updateDownloadButtonUI() {
+  if (!btnDownload) return;
+  if (bgType === 'video' && bgVideo) {
+    btnDownload.innerHTML = `
+      <svg class="icon-download" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="23 7 16 12 23 17 23 7"/>
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+      </svg>
+      カード動画をダウンロード (MP4 5秒)
+    `;
+  } else {
+    btnDownload.innerHTML = `
+      <svg class="icon-download" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      カード画像をダウンロード (PNG)
+    `;
+  }
+}
+
+async function downloadCardImage() {
+  if (!selectedTemplate || isRecording) return;
   
   // Parse filename from title
   const textContent = parseMarkdownText(markdownTextarea.value);
   const cleanTitle = textContent.title
     ? textContent.title.replace(/[\\/:*?"<>|]/g, '_') // preserve casing and letters, strip illegal filesystem chars
     : 'flashcard';
-  
-  // Export canvas image
-  const dataURL = cardCanvas.toDataURL('image/png');
-  
-  const link = document.createElement('a');
-  link.download = `${cleanTitle}.png`;
-  link.href = dataURL;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  
-  // Restore guides display
-  drawCard(false);
+
+  if (bgType === 'video' && bgVideo) {
+    // MP4 Video Download (5 seconds duration)
+    isRecording = true;
+    btnDownload.disabled = true;
+    
+    // Hide guide outlines during recording
+    drawCard(true);
+    
+    // Ensure video is playing
+    if (bgVideo.paused) {
+      bgVideo.play().catch(e => console.warn(e));
+    }
+
+    // Determine supported MP4 mimeType
+    const mimeTypes = [
+      'video/mp4;codecs=avc1',
+      'video/mp4',
+      'video/mp4;codecs=h264',
+      'video/webm;codecs=vp9',
+      'video/webm'
+    ];
+    let selectedMimeType = mimeTypes.find(type => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type)) || '';
+    
+    // Stream canvas at 30 FPS
+    const stream = cardCanvas.captureStream(30);
+    let recorderOptions = {};
+    if (selectedMimeType) {
+      recorderOptions.mimeType = selectedMimeType;
+    }
+    
+    let mediaRecorder;
+    try {
+      mediaRecorder = new MediaRecorder(stream, recorderOptions);
+    } catch (err) {
+      console.warn('MediaRecorder init with options failed, fallback to default:', err);
+      mediaRecorder = new MediaRecorder(stream);
+    }
+    
+    const chunks = [];
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) {
+        chunks.push(e.data);
+      }
+    };
+
+    mediaRecorder.onstop = () => {
+      const finalMime = mediaRecorder.mimeType || selectedMimeType || 'video/mp4';
+      const ext = finalMime.includes('mp4') ? 'mp4' : 'webm';
+      const blob = new Blob(chunks, { type: finalMime });
+      const videoURL = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.download = `${cleanTitle}.${ext}`;
+      link.href = videoURL;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setTimeout(() => URL.revokeObjectURL(videoURL), 10000);
+      
+      isRecording = false;
+      btnDownload.disabled = false;
+      updateDownloadButtonUI();
+      drawCard(false);
+    };
+
+    // Countdown UI timer
+    let remainingSeconds = 5;
+    btnDownload.textContent = `MP4作成中... (${remainingSeconds}秒)`;
+    
+    const countdownInterval = setInterval(() => {
+      remainingSeconds -= 1;
+      if (remainingSeconds > 0) {
+        btnDownload.textContent = `MP4作成中... (${remainingSeconds}秒)`;
+      } else {
+        clearInterval(countdownInterval);
+      }
+    }, 1000);
+
+    // Start recording
+    mediaRecorder.start(200);
+
+    // Record for exactly 5000ms (5 seconds)
+    setTimeout(() => {
+      clearInterval(countdownInterval);
+      if (mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+    }, 5000);
+
+  } else {
+    // Standard PNG Image Download
+    drawCard(true);
+    
+    const dataURL = cardCanvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = `${cleanTitle}.png`;
+    link.href = dataURL;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    drawCard(false);
+  }
 }
 
 // --- Helper functions for Badges ---
