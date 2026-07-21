@@ -1514,7 +1514,7 @@ async function handleTemplateUpload(e) {
 function startAnimationLoop() {
   if (animFrameId) return;
   function loop() {
-    drawCard();
+    drawCard(isRecording);
     if (bgType === 'video' || isRecording) {
       animFrameId = requestAnimationFrame(loop);
     } else {
@@ -1877,9 +1877,11 @@ async function downloadCardImage() {
     ];
     let selectedMimeType = mimeTypes.find(type => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type)) || '';
     
-    // Stream canvas at 30 FPS
-    const stream = cardCanvas.captureStream(30);
-    let recorderOptions = {};
+    // Stream canvas at 60 FPS for smooth high quality recording
+    const stream = cardCanvas.captureStream(60);
+    let recorderOptions = {
+      videoBitsPerSecond: 8000000 // 8 Mbps high quality video encoding
+    };
     if (selectedMimeType) {
       recorderOptions.mimeType = selectedMimeType;
     }
@@ -1933,8 +1935,8 @@ async function downloadCardImage() {
       }
     }, 1000);
 
-    // Start recording
-    mediaRecorder.start(200);
+    // Start recording seamlessly without timeslice chunking to avoid frame drops
+    mediaRecorder.start();
 
     // Record for exactly 5000ms (5 seconds)
     setTimeout(() => {
