@@ -1514,17 +1514,17 @@ function setupEventListeners() {
   }
   
   // Guide outline toggle
-  toggleGridOverlay.addEventListener('change', () => drawCard());
+  if (toggleGridOverlay) toggleGridOverlay.addEventListener('change', () => drawCard());
   
   // Template Upload Handler
-  templateUpload.addEventListener('change', handleTemplateUpload);
+  if (templateUpload) templateUpload.addEventListener('change', handleTemplateUpload);
   
   // Background Upload Handler
-  bgUpload.addEventListener('change', handleBackgroundUpload);
+  if (bgUpload) bgUpload.addEventListener('change', handleBackgroundUpload);
   
   // Background Action Buttons
-  btnClearBg.addEventListener('click', clearBackground);
-  btnResetBgPos.addEventListener('click', resetBackgroundPosition);
+  if (btnClearBg) btnClearBg.addEventListener('click', clearBackground);
+  if (btnResetBgPos) btnResetBgPos.addEventListener('click', resetBackgroundPosition);
   
   // BGM Controls Listeners
   if (selectBgm) selectBgm.addEventListener('change', handleBgmSelectChange);
